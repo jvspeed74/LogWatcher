@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
 
 namespace WatchStats.Core
 {
@@ -8,7 +9,6 @@ namespace WatchStats.Core
     /// </summary>
     public sealed class FilesystemWatcherAdapter : IDisposable
     {
-        private readonly string _path;
         private readonly BoundedEventBus<FsEvent> _bus;
         private readonly Func<string, bool> _isProcessable;
         private FileSystemWatcher? _watcher;
@@ -24,12 +24,12 @@ namespace WatchStats.Core
         public FilesystemWatcherAdapter(string path, BoundedEventBus<FsEvent> bus,
             Func<string, bool>? isProcessable = null)
         {
-            _path = path ?? throw new ArgumentNullException(nameof(path));
+            if (path == null) throw new ArgumentNullException(nameof(path));
             _bus = bus ?? throw new ArgumentNullException(nameof(bus));
             _isProcessable = isProcessable ?? DefaultIsProcessable;
 
             // Pre-create watcher but do not enable until Start()
-            _watcher = new FileSystemWatcher(_path)
+            _watcher = new FileSystemWatcher(path)
             {
                 IncludeSubdirectories = false,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
@@ -47,7 +47,7 @@ namespace WatchStats.Core
         /// <summary>
         /// Number of watcher errors observed. This counter is incremented when the underlying <see cref="FileSystemWatcher"/> raises an error.
         /// </summary>
-        public long ErrorCount => System.Threading.Interlocked.Read(ref _errorCount);
+        public long ErrorCount => Interlocked.Read(ref _errorCount);
 
         /// <summary>
         /// Enables the underlying <see cref="FileSystemWatcher"/> to begin raising events. Throws <see cref="ObjectDisposedException"/>
@@ -99,7 +99,7 @@ namespace WatchStats.Core
 
         private void OnError(object sender, ErrorEventArgs e)
         {
-            System.Threading.Interlocked.Increment(ref _errorCount);
+            Interlocked.Increment(ref _errorCount);
             // do not rethrow; just record
         }
 

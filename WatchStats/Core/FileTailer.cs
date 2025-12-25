@@ -57,7 +57,7 @@ namespace WatchStats.Core
             totalBytesRead = 0;
             bool truncated = false;
 
-            byte[] buffer = null;
+            byte[]? buffer = null;
             try
             {
                 // Open with sharing to allow writers to append and deletions/renames

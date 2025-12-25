@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace WatchStats.Core
+﻿namespace WatchStats.Core
 {
     // PartialLineBuffer holds carryover bytes for a single file between chunk scans.
     // Fields are public to match the doc's simple data-shape.
@@ -13,7 +11,7 @@ namespace WatchStats.Core
         /// <summary>
         /// Underlying buffer that stores appended bytes. May be <c>null</c> when empty.
         /// </summary>
-        public byte[] Buffer;
+        public byte[]? Buffer;
 
         /// <summary>
         /// Number of valid bytes in <see cref="Buffer"/> (0..Buffer.Length).

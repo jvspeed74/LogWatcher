@@ -37,7 +37,7 @@ namespace WatchStats.Core
         /// (useful for tests); when <c>null</c> a default <see cref="FileTailer"/> is created.
         /// </summary>
         /// <param name="tailer">Optional tailer used to read appended bytes from files.</param>
-        public FileProcessor(FileTailer tailer = null)
+        public FileProcessor(FileTailer? tailer = null)
         {
             _tailer = tailer ?? new FileTailer();
         }
@@ -62,8 +62,6 @@ namespace WatchStats.Core
             // Precondition: caller must hold state.Gate. We won't double-check locking here, but document it.
             // Use local offset to avoid advancing state.Offset until processing completes.
             long localOffset = state.Offset;
-
-            int totalBytesRead = 0;
 
             TailReadStatus status = _tailer.ReadAppended(path, ref localOffset, chunk =>
             {
@@ -93,7 +91,7 @@ namespace WatchStats.Core
                         stats.Histogram.Add(v);
                     }
                 });
-            }, out totalBytesRead, chunkSize);
+            }, out var totalBytesRead, chunkSize);
 
             // handle status counters
             switch (status)
