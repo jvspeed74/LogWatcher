@@ -3,7 +3,7 @@ using System.IO;
 
 namespace WatchStats
 {
-    internal static class CliParser
+    public static class CliParser
     {
         public static bool TryParse(string[] args, out AppConfig? config, out string? error)
         {
@@ -106,4 +106,3 @@ namespace WatchStats
         }
     }
 }
-

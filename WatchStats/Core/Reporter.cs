@@ -40,7 +40,10 @@ namespace WatchStats.Core
             {
                 _thread?.Join(2000);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Reporter.Stop join error: {ex}");
+            }
         }
 
         private void ReporterLoop()
@@ -70,59 +73,59 @@ namespace WatchStats.Core
                 catch (OperationCanceledException)
                 {
                     // timeout or cancelled; proceed with what we have
+                    Console.Error.WriteLine("Reporter: swap wait timed out");
                 }
 
-                // Merge phase
-                _snapshot.ResetForNextMerge(_topK);
-                foreach (var w in _workers)
-                {
-                    var buf = w.GetInactiveBufferForMerge();
-                    _snapshot.MergeFrom(buf);
-                }
+                // Merge/Frame build
+                var frame = BuildSnapshotAndFrame();
 
-                // attach bus metrics
-                _snapshot.BusPublished = _bus.PublishedCount;
-                _snapshot.BusDropped = _bus.DroppedCount;
-                _snapshot.BusDepth = _bus.Depth;
-
-                _snapshot.FinalizeSnapshot(_topK);
-
-                // GC deltas simple capture
-                long allocatedNow = GC.GetTotalAllocatedBytes(false);
-                int gen0 = GC.CollectionCount(0);
-                int gen1 = GC.CollectionCount(1);
-                int gen2 = GC.CollectionCount(2);
-
-                // Print a compact report line
-                PrintReport(elapsedSeconds, allocatedNow, gen0, gen1, gen2);
+                // Print
+                PrintReportFrame(frame, elapsedSeconds);
             }
 
             // optional final report on stop
             try
             {
-                _snapshot.ResetForNextMerge(_topK);
-                foreach (var w in _workers)
-                {
-                    var buf = w.GetInactiveBufferForMerge();
-                    _snapshot.MergeFrom(buf);
-                }
-                _snapshot.BusPublished = _bus.PublishedCount;
-                _snapshot.BusDropped = _bus.DroppedCount;
-                _snapshot.BusDepth = _bus.Depth;
-                _snapshot.FinalizeSnapshot(_topK);
-                PrintReport(0, GC.GetTotalAllocatedBytes(false), GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2));
+                var final = BuildSnapshotAndFrame();
+                PrintReportFrame(final, 0);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Reporter final report error: {ex}");
+            }
         }
 
-        private void PrintReport(double elapsedSeconds, long allocatedNow, int gen0, int gen1, int gen2)
+        // Extracted for unit testing: performs swap/merge and returns the populated GlobalSnapshot
+        internal GlobalSnapshot BuildSnapshotAndFrame()
         {
-            // Print a single-line summary and top-K on subsequent lines
-            Console.WriteLine($"[REPORT] elapsed={elapsedSeconds:0.00}s lines={_snapshot.LinesProcessed} malformed={_snapshot.MalformedLines} fs-events={_snapshot.FsCreated + _snapshot.FsModified + _snapshot.FsDeleted + _snapshot.FsRenamed} busDropped={_snapshot.BusDropped} busPublished={_snapshot.BusPublished} busDepth={_snapshot.BusDepth} allocated={allocatedNow} gen0={gen0} gen1={gen1} gen2={gen2}");
-            if (_snapshot.TopKMessages != null && _snapshot.TopKMessages.Count > 0)
+            _snapshot.ResetForNextMerge(_topK);
+            foreach (var w in _workers)
+            {
+                var buf = w.GetInactiveBufferForMerge();
+                _snapshot.MergeFrom(buf);
+            }
+
+            // attach bus metrics
+            _snapshot.BusPublished = _bus.PublishedCount;
+            _snapshot.BusDropped = _bus.DroppedCount;
+            _snapshot.BusDepth = _bus.Depth;
+
+            _snapshot.FinalizeSnapshot(_topK);
+            return _snapshot;
+        }
+
+        private void PrintReportFrame(GlobalSnapshot snapshot, double elapsedSeconds)
+        {
+            long allocatedNow = GC.GetTotalAllocatedBytes(false);
+            int gen0 = GC.CollectionCount(0);
+            int gen1 = GC.CollectionCount(1);
+            int gen2 = GC.CollectionCount(2);
+
+            Console.WriteLine($"[REPORT] elapsed={elapsedSeconds:0.00}s lines={snapshot.LinesProcessed} malformed={snapshot.MalformedLines} fs-events={snapshot.FsCreated + snapshot.FsModified + snapshot.FsDeleted + snapshot.FsRenamed} busDropped={snapshot.BusDropped} busPublished={snapshot.BusPublished} busDepth={snapshot.BusDepth} allocated={allocatedNow} gen0={gen0} gen1={gen1} gen2={gen2}");
+            if (snapshot.TopKMessages.Count > 0)
             {
                 Console.WriteLine("TopK:");
-                foreach (var kv in _snapshot.TopKMessages)
+                foreach (var kv in snapshot.TopKMessages)
                 {
                     Console.WriteLine($"  {kv.Key}: {kv.Count}");
                 }
@@ -130,4 +133,3 @@ namespace WatchStats.Core
         }
     }
 }
-
