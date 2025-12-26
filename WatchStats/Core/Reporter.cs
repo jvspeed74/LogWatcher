@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace WatchStats.Core
 {
@@ -14,11 +16,18 @@ namespace WatchStats.Core
         private readonly BoundedEventBus<FsEvent> _bus;
         private readonly int _topK;
         private readonly int _intervalSeconds;
+        private readonly TimeSpan _ackTimeout;
         private Thread? _thread;
         private volatile bool _stopping;
 
         // snapshot reused across reports
         private readonly GlobalSnapshot _snapshot;
+
+        // GC baselines used to compute deltas between reports
+        private long _lastAllocatedBytes;
+        private int _lastGen0;
+        private int _lastGen1;
+        private int _lastGen2;
 
         /// <summary>
         /// Creates a new <see cref="Reporter"/> instance.
@@ -27,14 +36,23 @@ namespace WatchStats.Core
         /// <param name="bus">Event bus whose metrics (published/dropped/depth) are attached to the snapshot.</param>
         /// <param name="topK">Number of top messages to compute in each report; clamped to at least 1.</param>
         /// <param name="intervalSeconds">Report interval in seconds; clamped to at least 1.</param>
+        /// <param name="ackTimeout">Timeout to wait for worker swap acknowledgements. If null, defaults to max(1s, intervalSeconds).</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="workers"/> or <paramref name="bus"/> is null.</exception>
-        public Reporter(WorkerStats[] workers, BoundedEventBus<FsEvent> bus, int topK = 10, int intervalSeconds = 2)
+        public Reporter(WorkerStats[] workers, BoundedEventBus<FsEvent> bus, int topK = 10, int intervalSeconds = 2, TimeSpan? ackTimeout = null)
         {
             _workers = workers ?? throw new ArgumentNullException(nameof(workers));
             _bus = bus ?? throw new ArgumentNullException(nameof(bus));
             _topK = Math.Max(1, topK);
             _intervalSeconds = Math.Max(1, intervalSeconds);
+            // default ack timeout is 1.5x the reporting interval to tolerate busy workers
+            _ackTimeout = ackTimeout ?? TimeSpan.FromSeconds(Math.Max(1, _intervalSeconds) * 1.5);
             _snapshot = new GlobalSnapshot(_topK);
+
+            // initialize baselines to zero here; real baseline captured when Start() is called so tests can call BuildSnapshotAndFrame without timing side-effects
+            _lastAllocatedBytes = 0;
+            _lastGen0 = 0;
+            _lastGen1 = 0;
+            _lastGen2 = 0;
         }
 
         /// <summary>
@@ -43,6 +61,12 @@ namespace WatchStats.Core
         /// </summary>
         public void Start()
         {
+            // capture GC baselines at start to compute deltas on first interval
+            _lastAllocatedBytes = GC.GetTotalAllocatedBytes(false);
+            _lastGen0 = GC.CollectionCount(0);
+            _lastGen1 = GC.CollectionCount(1);
+            _lastGen2 = GC.CollectionCount(2);
+
             _stopping = false;
             _thread = new Thread(ReporterLoop) { IsBackground = true, Name = "reporter" };
             _thread.Start();
@@ -79,18 +103,37 @@ namespace WatchStats.Core
 
                 // Swap phase
                 foreach (var w in _workers) w.RequestSwap();
-                // wait for acks with cancellation support
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(Math.Max(1, _intervalSeconds)));
+                // wait for acks with configured timeout — run waits in parallel so one slow worker doesn't consume full timeout for all
+                using var cts = new CancellationTokenSource(_ackTimeout);
                 try
                 {
-                    foreach (var w in _workers)
+                    var tasks = _workers.Select((w, idx) => Task.Run(() =>
                     {
-                        w.WaitForSwapAck(cts.Token);
+                        try
+                        {
+                            w.WaitForSwapAck(cts.Token);
+                            return idx; // acked index
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            return -1; // not acked
+                        }
+                    })).ToArray();
+
+                    // Wait for all tasks to complete within the ack timeout
+                    Task.WaitAll(tasks, _ackTimeout);
+
+                    // collect acknowledgements
+                    var ackedIndices = tasks.Where(t => t.IsCompleted && t.Result >= 0).Select(t => t.Result).ToArray();
+                    int acked = ackedIndices.Length;
+                    if (acked != _workers.Length)
+                    {
+                        Console.Error.WriteLine($"Reporter: swap wait timed out (acked={acked} of {_workers.Length}); ackedIndices=[{string.Join(',', ackedIndices)}]");
                     }
                 }
-                catch (OperationCanceledException)
+                catch (Exception ex) when (ex is AggregateException || ex is OperationCanceledException)
                 {
-                    // timeout or cancelled; proceed with what we have
+                    // timeout or task exception; proceed with what we have
                     Console.Error.WriteLine("Reporter: swap wait timed out");
                 }
 
@@ -138,9 +181,10 @@ namespace WatchStats.Core
 
         /// <summary>
         /// Formats and writes the provided snapshot to <see cref="Console"/> including allocation and GC stats.
+        /// Computes deltas against the last baselines captured in Start/after the previous non-final report.
         /// </summary>
         /// <param name="snapshot">Snapshot to print.</param>
-        /// <param name="elapsedSeconds">Elapsed interval in seconds used for the printed report line.</param>
+        /// <param name="elapsedSeconds">Elapsed interval in seconds used for the printed report line. Zero indicates a final/no-interval report.</param>
         private void PrintReportFrame(GlobalSnapshot snapshot, double elapsedSeconds)
         {
             long allocatedNow = GC.GetTotalAllocatedBytes(false);
@@ -148,8 +192,19 @@ namespace WatchStats.Core
             int gen1 = GC.CollectionCount(1);
             int gen2 = GC.CollectionCount(2);
 
+            long allocatedDelta = allocatedNow - _lastAllocatedBytes;
+            int gen0Delta = gen0 - _lastGen0;
+            int gen1Delta = gen1 - _lastGen1;
+            int gen2Delta = gen2 - _lastGen2;
+
+            // compute simple per-second rates when we have a positive elapsedSeconds
+            double fsEventsTotal = snapshot.FsCreated + snapshot.FsModified + snapshot.FsDeleted + snapshot.FsRenamed;
+            double lines = snapshot.LinesProcessed;
+            double fsRate = elapsedSeconds > 0 ? fsEventsTotal / elapsedSeconds : 0.0;
+            double linesRate = elapsedSeconds > 0 ? lines / elapsedSeconds : 0.0;
+
             Console.WriteLine(
-                $"[REPORT] elapsed={elapsedSeconds:0.00}s lines={snapshot.LinesProcessed} malformed={snapshot.MalformedLines} fs-events={snapshot.FsCreated + snapshot.FsModified + snapshot.FsDeleted + snapshot.FsRenamed} busDropped={snapshot.BusDropped} busPublished={snapshot.BusPublished} busDepth={snapshot.BusDepth} allocated={allocatedNow} gen0={gen0} gen1={gen1} gen2={gen2}");
+                $"[REPORT] elapsed={elapsedSeconds:0.00}s lines={snapshot.LinesProcessed} lines/s={linesRate:0.00} malformed={snapshot.MalformedLines} fs-events={fsEventsTotal} fs/s={fsRate:0.00} busDropped={snapshot.BusDropped} busPublished={snapshot.BusPublished} busDepth={snapshot.BusDepth} allocatedDelta={allocatedDelta} allocated={allocatedNow} gen0Delta={gen0Delta} gen1Delta={gen1Delta} gen2Delta={gen2Delta}");
             if (snapshot.TopKMessages.Count > 0)
             {
                 Console.WriteLine("TopK:");
@@ -157,6 +212,15 @@ namespace WatchStats.Core
                 {
                     Console.WriteLine($"  {kv.Key}: {kv.Count}");
                 }
+            }
+
+            // update baselines only when this was a regular interval (not the final forced report with elapsedSeconds==0)
+            if (elapsedSeconds > 0)
+            {
+                _lastAllocatedBytes = allocatedNow;
+                _lastGen0 = gen0;
+                _lastGen1 = gen1;
+                _lastGen2 = gen2;
             }
         }
     }

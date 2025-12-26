@@ -18,6 +18,8 @@ namespace WatchStats.Core
 
         private volatile bool _stopping;
 
+        private readonly bool _enableDiagnostics = false; // set true when debugging locally
+
         /// <summary>
         /// Creates a new <see cref="ProcessingCoordinator"/>.
         /// </summary>
@@ -52,7 +54,11 @@ namespace WatchStats.Core
         public void Start()
         {
             _stopping = false;
-            foreach (var t in _threads) t.Start();
+            foreach (var t in _threads)
+            {
+                if (_enableDiagnostics) Console.WriteLine($"Starting worker thread: {t.Name}");
+                t.Start();
+            }
         }
 
         /// <summary>
@@ -78,11 +84,14 @@ namespace WatchStats.Core
         private void WorkerLoop(int workerIndex)
         {
             var stats = _workerStats[workerIndex];
+            if (_enableDiagnostics) Console.WriteLine($"Worker {workerIndex} loop started");
             while (!_stopping)
             {
                 if (!_bus.TryDequeue(out var ev, _dequeueTimeoutMs))
                 {
-                    // nothing dequeued; continue loop
+                    // nothing dequeued; allow timely swap acknowledgements and continue loop
+                    if (_enableDiagnostics) Console.WriteLine($"Worker {workerIndex}: idle ack check");
+                    stats.AcknowledgeSwapIfRequested();
                     continue;
                 }
 
@@ -95,7 +104,7 @@ namespace WatchStats.Core
                     case FsEventKind.Created:
                     case FsEventKind.Modified:
                         if (ev.Processable)
-                            HandleCreateOrModify(ev.Path, stats.Active);
+                            HandleCreateOrModify(ev.Path, stats);
                         break;
                     case FsEventKind.Deleted:
                         HandleDelete(ev.Path, stats.Active);
@@ -104,23 +113,25 @@ namespace WatchStats.Core
                         if (!string.IsNullOrEmpty(ev.OldPath))
                             HandleDelete(ev.OldPath, stats.Active);
                         if (ev.Processable)
-                            HandleCreateOrModify(ev.Path, stats.Active);
+                            HandleCreateOrModify(ev.Path, stats);
                         break;
                 }
 
                 // Acknowledge swap after fully handling this event
+                if (_enableDiagnostics) Console.WriteLine($"Worker {workerIndex}: post-event ack check");
                 stats.AcknowledgeSwapIfRequested();
             }
         }
 
-        private void HandleCreateOrModify(string path, WorkerStatsBuffer stats)
+        private void HandleCreateOrModify(string path, WorkerStats stats)
         {
             var state = _registry.GetOrCreate(path);
+            var buffer = stats.Active;
             // try acquire gate
             if (!Monitor.TryEnter(state.Gate))
             {
                 state.MarkDirtyIfAllowed();
-                stats.CoalescedDueToBusyGate++;
+                buffer.CoalescedDueToBusyGate++;
                 return;
             }
 
@@ -128,29 +139,35 @@ namespace WatchStats.Core
             {
                 if (state.IsDeletePending)
                 {
-                    stats.SkippedDueToDeletePending++;
+                    buffer.SkippedDueToDeletePending++;
                     _registry.FinalizeDelete(path);
-                    stats.FileStateRemovedCount++;
+                    buffer.FileStateRemovedCount++;
                     return;
                 }
 
                 // catch-up loop
                 while (true)
                 {
+                    // allow timely swap acknowledgements to be processed between iterations
+                    stats.AcknowledgeSwapIfRequested();
+
                     if (state.IsDeletePending)
                     {
                         _registry.FinalizeDelete(path);
-                        stats.FileStateRemovedCount++;
+                        buffer.FileStateRemovedCount++;
                         return;
                     }
 
                     // process once
-                    _processor.ProcessOnce(path, state, stats);
+                    _processor.ProcessOnce(path, state, buffer);
+
+                    // allow timely swap acknowledgements after processing
+                    stats.AcknowledgeSwapIfRequested();
 
                     if (state.IsDeletePending)
                     {
                         _registry.FinalizeDelete(path);
-                        stats.FileStateRemovedCount++;
+                        buffer.FileStateRemovedCount++;
                         return;
                     }
 
