@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WatchStats", "WatchStats\Wa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WatchStats.Tests", "WatchStats.Tests\WatchStats.Tests.csproj", "{95373C12-C3B1-483C-B72C-35C11AF971B3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WatchStats.Seed", "WatchStats.Seed\WatchStats.Seed.csproj", "{0481DF95-85EA-4D5D-BD92-6FAB10F85CDE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{95373C12-C3B1-483C-B72C-35C11AF971B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{95373C12-C3B1-483C-B72C-35C11AF971B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{95373C12-C3B1-483C-B72C-35C11AF971B3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0481DF95-85EA-4D5D-BD92-6FAB10F85CDE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0481DF95-85EA-4D5D-BD92-6FAB10F85CDE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0481DF95-85EA-4D5D-BD92-6FAB10F85CDE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0481DF95-85EA-4D5D-BD92-6FAB10F85CDE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
