@@ -23,7 +23,7 @@ namespace WatchStats.Seed
             if (string.IsNullOrWhiteSpace(TempPath)) throw new ArgumentException("TempPath is required");
             if (!Directory.Exists(TempPath))
             {
-                // try to create later; not considered an error here
+                throw new DirectoryNotFoundException($"{TempPath} does not exist");
             }
             if (!EnableTxt && !EnableLog) throw new ArgumentException("At least one of EnableTxt or EnableLog must be true");
             if (FileNameMin < 0) throw new ArgumentOutOfRangeException(nameof(FileNameMin));
