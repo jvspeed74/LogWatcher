@@ -205,7 +205,7 @@ namespace WatchStats.Core.Metrics
             // TODO: missing histogram percentiles
             Console.WriteLine(
                 $"[REPORT] elapsed={elapsedSeconds:0.00}s lines={snapshot.LinesProcessed} lines/s={linesRate:0.00} malformed={snapshot.MalformedLines} fs-events={fsEventsTotal} fs/s={fsRate:0.00} busDropped={snapshot.BusDropped} busPublished={snapshot.BusPublished} busDepth={snapshot.BusDepth} allocatedDelta={allocatedDelta} allocated={allocatedNow} gen0Delta={gen0Delta} gen1Delta={gen1Delta} gen2Delta={gen2Delta}");
-            
+
             if (snapshot.TopKMessages.Count > 0)
             {
                 // TODO : verify the counts even work
