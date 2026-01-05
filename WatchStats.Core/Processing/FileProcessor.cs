@@ -56,10 +56,6 @@ namespace WatchStats.Core.Processing
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/>, <paramref name="state"/>, or <paramref name="stats"/> is <c>null</c>.</exception>
         public void ProcessOnce(string path, FileState state, WorkerStatsBuffer stats, int chunkSize = 64 * 1024)
         {
-            if (path == null) throw new ArgumentNullException(nameof(path));
-            if (state == null) throw new ArgumentNullException(nameof(state));
-            if (stats == null) throw new ArgumentNullException(nameof(stats));
-
             // Precondition: caller must hold state.Gate. We won't double-check locking here, but document it.
             // Use local offset to avoid advancing state.Offset until processing completes.
             long localOffset = state.Offset;
