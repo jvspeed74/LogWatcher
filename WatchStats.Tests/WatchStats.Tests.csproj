@@ -19,8 +19,14 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\WatchStats.App\WatchStats.App.csproj" />
-        <ProjectReference Include="..\WatchStats.Core\WatchStats.Core.csproj" />
+        <ProjectReference Include="..\WatchStats.App\WatchStats.App.csproj"/>
+        <ProjectReference Include="..\WatchStats.Core\WatchStats.Core.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="Unit\"/>
+        <Folder Include="Integration\"/>
+        <Folder Include="Stress\"/>
     </ItemGroup>
 
 </Project>
