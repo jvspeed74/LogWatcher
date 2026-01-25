@@ -208,12 +208,12 @@ namespace WatchStats.Core.Metrics
             double linesPerSec = intervalMs > 0 ? snapshot.LinesProcessed / (intervalMs / 1000.0) : 0.0;
             double malformedPerSec = intervalMs > 0 ? snapshot.MalformedLines / (intervalMs / 1000.0) : 0.0;
 
-            // Extract level counts
-            long levelInfo = snapshot.LevelCounts.Length > (int)Processing.LogLevel.Info ? snapshot.LevelCounts[(int)Processing.LogLevel.Info] : 0;
-            long levelWarn = snapshot.LevelCounts.Length > (int)Processing.LogLevel.Warn ? snapshot.LevelCounts[(int)Processing.LogLevel.Warn] : 0;
-            long levelError = snapshot.LevelCounts.Length > (int)Processing.LogLevel.Error ? snapshot.LevelCounts[(int)Processing.LogLevel.Error] : 0;
-            long levelOther = snapshot.LevelCounts.Length > (int)Processing.LogLevel.Other ? snapshot.LevelCounts[(int)Processing.LogLevel.Other] : 0;
-            long levelDebug = snapshot.LevelCounts.Length > (int)Processing.LogLevel.Debug ? snapshot.LevelCounts[(int)Processing.LogLevel.Debug] : 0;
+            // Extract level counts with helper to avoid repetitive bounds checking
+            long levelInfo = GetLevelCount(snapshot, Processing.LogLevel.Info);
+            long levelWarn = GetLevelCount(snapshot, Processing.LogLevel.Warn);
+            long levelError = GetLevelCount(snapshot, Processing.LogLevel.Error);
+            long levelOther = GetLevelCount(snapshot, Processing.LogLevel.Other);
+            long levelDebug = GetLevelCount(snapshot, Processing.LogLevel.Debug);
             levelOther += levelDebug; // Combine Debug into Other for reporting
 
             // Emit structured metrics if enabled
@@ -250,7 +250,7 @@ namespace WatchStats.Core.Metrics
                     snapshot.P99 ?? 0.0,
                     busDropsDelta,
                     snapshot.TruncationResetCount,
-                    0, // overflows - not tracked yet, placeholder
+                    0, // overflows - TODO: implement overflow tracking in FilesystemWatcherAdapter
                     gen0Delta,
                     gen1Delta,
                     gen2Delta,
@@ -266,6 +266,15 @@ namespace WatchStats.Core.Metrics
             _lastGen1 = gen1;
             _lastGen2 = gen2;
             _lastBusDropped = snapshot.BusDropped;
+        }
+
+        /// <summary>
+        /// Helper method to safely extract level count from snapshot with bounds checking.
+        /// </summary>
+        private static long GetLevelCount(GlobalSnapshot snapshot, Processing.LogLevel level)
+        {
+            int index = (int)level;
+            return snapshot.LevelCounts.Length > index ? snapshot.LevelCounts[index] : 0;
         }
     }
 }
