@@ -21,7 +21,7 @@ namespace WatchStats.Core.Concurrency
 
         private long _published;
         private long _dropped;
-        private DateTime _lastDropLogTime = DateTime.MinValue;
+        private long _lastDropLogTimeTicks = DateTime.MinValue.Ticks;
         private readonly TimeSpan _dropLogInterval = TimeSpan.FromSeconds(10);
 
         /// <summary>
@@ -55,14 +55,19 @@ namespace WatchStats.Core.Concurrency
                 {
                     var newDropped = Interlocked.Increment(ref _dropped);
                     
-                    // Rate limit logging to once per 10 seconds
-                    var now = DateTime.UtcNow;
-                    if (now - _lastDropLogTime >= _dropLogInterval)
+                    // Rate limit logging to once per 10 seconds using lock-free atomic compare-exchange
+                    var nowTicks = DateTime.UtcNow.Ticks;
+                    var lastLoggedTicks = Interlocked.Read(ref _lastDropLogTimeTicks);
+                    
+                    if (nowTicks - lastLoggedTicks >= _dropLogInterval.Ticks)
                     {
-                        _lastDropLogTime = now;
-                        _logger?.LogWarning(Events.BusDropNewest,
-                            "Event bus full, dropping newest event. Capacity={Capacity} Dropped={Dropped}",
-                            _capacity, newDropped);
+                        // Attempt to claim the logging slot atomically
+                        if (Interlocked.CompareExchange(ref _lastDropLogTimeTicks, nowTicks, lastLoggedTicks) == lastLoggedTicks)
+                        {
+                            _logger?.LogWarning(Events.BusDropNewest,
+                                "Event bus full, dropping newest event. Capacity={Capacity} Dropped={Dropped}",
+                                _capacity, newDropped);
+                        }
                     }
                     
                     return false; // drop newest
