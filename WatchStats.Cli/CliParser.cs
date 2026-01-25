@@ -1,4 +1,6 @@
-﻿namespace WatchStats.Cli;
+﻿using Microsoft.Extensions.Logging;
+
+namespace WatchStats.Cli;
 
 /// <summary>
 /// Command-line parser for the WatchStats.Core application.
@@ -19,11 +21,14 @@ public static class CliParser
         config = null;
         error = null;
 
-        int workers = Environment.ProcessorCount;
-        int queueCapacity = 10000;
-        int reportIntervalSeconds = 2;
-        int topK = 10;
-        string? watchPath = null;
+        int workers = GetEnvInt("WATCHSTATS_WORKERS", Environment.ProcessorCount);
+        int busCapacity = GetEnvInt("WATCHSTATS_BUS_CAPACITY", 10000);
+        int intervalMs = GetEnvInt("WATCHSTATS_REPORT_INTERVAL", 2000);
+        int topK = GetEnvInt("WATCHSTATS_TOPK", 10);
+        Microsoft.Extensions.Logging.LogLevel logLevel = GetEnvLogLevel("WATCHSTATS_LOG_LEVEL", Microsoft.Extensions.Logging.LogLevel.Information);
+        bool jsonLogs = GetEnvBool("WATCHSTATS_JSON_LOGS", false);
+        bool enableMetricsLogs = !GetEnvBool("WATCHSTATS_METRICS_LOGS", true, invertZero: true);
+        string? watchPath = Environment.GetEnvironmentVariable("WATCHSTATS_DIRECTORY");
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -47,6 +52,18 @@ public static class CliParser
 
                 switch (opt)
                 {
+                    case "--dir":
+                    case "--directory":
+                        if (val == null)
+                        {
+                            if (!TryConsumeValue(args, ref i, out val))
+                            {
+                                error = "--dir requires a value";
+                                return false;
+                            }
+                        }
+                        watchPath = val;
+                        break;
                     case "--workers":
                         if (val == null)
                         {
@@ -64,36 +81,36 @@ public static class CliParser
                         }
 
                         break;
-                    case "--queue-capacity":
+                    case "--capacity":
                         if (val == null)
                         {
                             if (!TryConsumeValue(args, ref i, out val))
                             {
-                                error = "--queue-capacity requires a value";
+                                error = "--capacity requires a value";
                                 return false;
                             }
                         }
 
-                        if (!int.TryParse(val, out queueCapacity))
+                        if (!int.TryParse(val, out busCapacity))
                         {
-                            error = "invalid --queue-capacity value";
+                            error = "invalid --capacity value";
                             return false;
                         }
 
                         break;
-                    case "--report-interval-seconds":
+                    case "--interval":
                         if (val == null)
                         {
                             if (!TryConsumeValue(args, ref i, out val))
                             {
-                                error = "--report-interval-seconds requires a value";
+                                error = "--interval requires a value";
                                 return false;
                             }
                         }
 
-                        if (!int.TryParse(val, out reportIntervalSeconds))
+                        if (!int.TryParse(val, out intervalMs))
                         {
-                            error = "invalid --report-interval-seconds value";
+                            error = "invalid --interval value";
                             return false;
                         }
 
@@ -114,6 +131,29 @@ public static class CliParser
                             return false;
                         }
 
+                        break;
+                    case "--logLevel":
+                        if (val == null)
+                        {
+                            if (!TryConsumeValue(args, ref i, out val))
+                            {
+                                error = "--logLevel requires a value";
+                                return false;
+                            }
+                        }
+
+                        if (!Enum.TryParse<Microsoft.Extensions.Logging.LogLevel>(val, true, out logLevel))
+                        {
+                            error = "invalid --logLevel value (valid: Trace, Debug, Information, Warning, Error, Critical)";
+                            return false;
+                        }
+
+                        break;
+                    case "--json-logs":
+                        jsonLogs = true;
+                        break;
+                    case "--no-metrics-logs":
+                        enableMetricsLogs = false;
                         break;
                     case "--help":
                     case "-h":
@@ -137,13 +177,13 @@ public static class CliParser
 
         if (string.IsNullOrEmpty(watchPath))
         {
-            error = "missing watchPath";
+            error = "missing required argument: --dir <path>";
             return false;
         }
 
         try
         {
-            config = new CliConfig(watchPath, workers, queueCapacity, reportIntervalSeconds, topK);
+            config = new CliConfig(watchPath, workers, busCapacity, intervalMs, topK, logLevel, jsonLogs, enableMetricsLogs);
             return true;
         }
         catch (Exception ex)
@@ -151,6 +191,31 @@ public static class CliParser
             error = ex.Message;
             return false;
         }
+    }
+    
+    private static int GetEnvInt(string envVar, int defaultValue)
+    {
+        var value = Environment.GetEnvironmentVariable(envVar);
+        return value != null && int.TryParse(value, out var result) ? result : defaultValue;
+    }
+    
+    private static Microsoft.Extensions.Logging.LogLevel GetEnvLogLevel(string envVar, Microsoft.Extensions.Logging.LogLevel defaultValue)
+    {
+        var value = Environment.GetEnvironmentVariable(envVar);
+        return value != null && Enum.TryParse<Microsoft.Extensions.Logging.LogLevel>(value, true, out var result) ? result : defaultValue;
+    }
+    
+    private static bool GetEnvBool(string envVar, bool defaultValue, bool invertZero = false)
+    {
+        var value = Environment.GetEnvironmentVariable(envVar);
+        if (value == null) return defaultValue;
+        
+        // Handle "0" and "1" explicitly
+        if (value == "0") return invertZero ? true : false;
+        if (value == "1") return invertZero ? false : true;
+        
+        // Handle true/false strings
+        return bool.TryParse(value, out var result) ? result : defaultValue;
     }
 
     /// <summary>
