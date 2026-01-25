@@ -28,12 +28,14 @@ namespace WatchStats.Core.IO
             _bus = bus ?? throw new ArgumentNullException(nameof(bus));
             _isProcessable = isProcessable ?? DefaultIsProcessable;
 
+            // TODO: Consider validating that the path exists and is a directory before creating the watcher
             // Pre-create watcher but do not enable until Start()
             _watcher = new FileSystemWatcher(path)
             {
                 IncludeSubdirectories = false,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
                 Filter = "*.*",
+                // TODO: Make internal buffer size configurable to handle high-volume file change scenarios
                 InternalBufferSize = 64 * 1024
             };
 
@@ -100,6 +102,7 @@ namespace WatchStats.Core.IO
         private void OnError(object sender, ErrorEventArgs e)
         {
             Interlocked.Increment(ref _errorCount);
+            // TODO: Add structured logging for FileSystemWatcher errors to diagnose buffer overflow issues
             // do not rethrow; just record
         }
 
@@ -114,7 +117,7 @@ namespace WatchStats.Core.IO
             catch
             {
                 // Swallow any exceptions to keep handlers lightweight
-                // todo log
+                // TODO: Add structured logging for exceptions in event publishing (path, kind, exception details)
             }
         }
 

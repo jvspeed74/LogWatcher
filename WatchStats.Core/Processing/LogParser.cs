@@ -91,6 +91,7 @@ namespace WatchStats.Core.Processing
 
             // 2. Parse timestamp (strict ISO-8601)
             string tsString = Encoding.UTF8.GetString(timestampBytes);
+            // TODO: Consider caching UTF8 decoder or using Utf8Parser to avoid allocations
             if (!DateTimeOffset.TryParseExact(tsString, IsoFormats, CultureInfo.InvariantCulture,
                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dto))
             {
@@ -157,6 +158,8 @@ namespace WatchStats.Core.Processing
 
         private static int IndexOfByte(ReadOnlySpan<byte> span, byte value)
         {
+            // FIXME: Replace with ReadOnlySpan<byte>.IndexOf() for better performance
+            // The built-in IndexOf uses vectorized operations on supported platforms
             for (int i = 0; i < span.Length; i++)
                 if (span[i] == value)
                     return i;
@@ -193,6 +196,8 @@ namespace WatchStats.Core.Processing
 
         private static int IndexOfSubsequence(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needle)
         {
+            // TODO: Consider using Boyer-Moore or other efficient substring search algorithm for better performance
+            // Current naive implementation has O(n*m) complexity
             if (needle.Length == 0) return 0;
             if (needle.Length > haystack.Length) return -1;
 

@@ -83,7 +83,7 @@ namespace WatchStats.Core.Metrics
         /// Resets counters and prepared collections in preparation for the next merge. Preserves reasonable capacity where applicable.
         /// </summary>
         /// <param name="topK">Top-K capacity to prepare for.</param>
-        public void ResetForNextMerge(int topK)  // TODO : parameterize message capacity?
+        public void ResetForNextMerge(int topK)  // TODO: Consider parameterizing message dictionary capacity to prevent excessive resizing
         {
             FsCreated = FsModified = FsDeleted = FsRenamed = 0;
             LinesProcessed = 0;

@@ -71,6 +71,7 @@ namespace WatchStats.Core.Concurrency
             _bus.Stop();
             try
             {
+                // TODO: Consider making join timeout configurable for different workloads
                 foreach (var t in _threads)
                 {
                     if (!t.Join(2000)) t.Interrupt();

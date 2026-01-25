@@ -57,6 +57,7 @@
             int required = Length + src.Length;
             if (required > Buffer.Length)
             {
+                // TODO: Consider capping maximum buffer size to prevent unbounded growth from pathological input
                 int newSize = Buffer.Length;
                 while (newSize < required)
                 {
@@ -94,6 +95,7 @@
         {
             if (onLine == null) throw new ArgumentNullException(nameof(onLine));
 
+            // TODO: Consider adding a maximum line length check to prevent unbounded memory growth from malformed input
             // Handle the carry path first
             if (carry.Length > 0)
             {

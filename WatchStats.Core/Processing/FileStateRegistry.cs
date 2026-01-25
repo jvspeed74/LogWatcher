@@ -7,6 +7,7 @@ namespace WatchStats.Core.Processing;
 /// </summary>
 public sealed class FileStateRegistry
 {
+    // TODO: Consider adding a cleanup mechanism for orphaned FileState entries when files are no longer being watched
     private readonly ConcurrentDictionary<string, FileState> _states = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, int> _epochs = new(StringComparer.Ordinal);
 
@@ -58,7 +59,7 @@ public sealed class FileStateRegistry
             catch
             {
                 // swallow any errors from clearing fields
-                // todo log
+                // TODO: Add structured logging for carry buffer cleanup failures (path, exception details)
             }
         }
 
