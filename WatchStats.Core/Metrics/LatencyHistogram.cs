@@ -6,6 +6,7 @@
     /// </summary>
     public sealed class LatencyHistogram
     {
+        // TODO: Consider making histogram bounds configurable to support different latency ranges
         private const int MaxMs = 10_000;
         private const int OverflowIndex = MaxMs + 1; // 10001
         private const int BinCount = MaxMs + 2; // 0..10000 plus overflow
@@ -60,6 +61,8 @@
         {
             if (other == null) throw new ArgumentNullException(nameof(other));
 
+            // FIXME: Potential integer overflow when merging bins with very high counts
+            // Consider using checked arithmetic or long[] for bins
             for (int i = 0; i < _bins.Length; i++)
             {
                 _bins[i] += other._bins[i];

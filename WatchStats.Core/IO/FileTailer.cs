@@ -7,6 +7,7 @@ namespace WatchStats.Core.IO
     /// </summary>
     public sealed class FileTailer
     {
+        // TODO: Consider making chunk size configurable per file type or based on available memory
         private const int DefaultChunkSize = 64 * 1024;
 
         /// <summary>
@@ -79,6 +80,7 @@ namespace WatchStats.Core.IO
                 // seek to effectiveOffset
                 fs.Seek(effectiveOffset, SeekOrigin.Begin);
 
+                // TODO: Consider using FileStream.ReadAsync for better async I/O performance in high-throughput scenarios
                 buffer = ArrayPool<byte>.Shared.Rent(chunkSize);
 
                 int read;
