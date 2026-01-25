@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Folder Include="Core\" />
+      <ProjectReference Include="..\WatchStats.Core\WatchStats.Core.csproj" />
     </ItemGroup>
 
 </Project>
