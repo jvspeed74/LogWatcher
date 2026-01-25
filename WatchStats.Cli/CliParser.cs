@@ -27,7 +27,7 @@ public static class CliParser
         int topK = GetEnvInt("WATCHSTATS_TOPK", 10);
         Microsoft.Extensions.Logging.LogLevel logLevel = GetEnvLogLevel("WATCHSTATS_LOG_LEVEL", Microsoft.Extensions.Logging.LogLevel.Information);
         bool jsonLogs = GetEnvBool("WATCHSTATS_JSON_LOGS", false);
-        bool enableMetricsLogs = !GetEnvBool("WATCHSTATS_METRICS_LOGS", true, invertZero: true);
+        bool enableMetricsLogs = GetEnvBool("WATCHSTATS_METRICS_LOGS", true);
         string? watchPath = Environment.GetEnvironmentVariable("WATCHSTATS_DIRECTORY");
 
         for (int i = 0; i < args.Length; i++)
@@ -205,14 +205,14 @@ public static class CliParser
         return value != null && Enum.TryParse<Microsoft.Extensions.Logging.LogLevel>(value, true, out var result) ? result : defaultValue;
     }
     
-    private static bool GetEnvBool(string envVar, bool defaultValue, bool invertZero = false)
+    private static bool GetEnvBool(string envVar, bool defaultValue)
     {
         var value = Environment.GetEnvironmentVariable(envVar);
         if (value == null) return defaultValue;
         
         // Handle "0" and "1" explicitly
-        if (value == "0") return invertZero ? true : false;
-        if (value == "1") return invertZero ? false : true;
+        if (value == "0") return false;
+        if (value == "1") return true;
         
         // Handle true/false strings
         return bool.TryParse(value, out var result) ? result : defaultValue;
