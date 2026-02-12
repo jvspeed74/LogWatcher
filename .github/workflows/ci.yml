@@ -23,10 +23,9 @@ jobs:
           path: |
             ~/.nuget/packages
             ~\.nuget\packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('global.json', '**/*.csproj') }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('global.json', '**/*.csproj', '**/*.sln') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
-      
       
       - name: Restore
         run: dotnet restore
