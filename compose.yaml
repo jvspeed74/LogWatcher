@@ -1,6 +1,7 @@
 ﻿services:
   watchstats.cli:
     image: watchstats.cli
+    container_name: watcher
     build:
       context: .
       dockerfile: WatchStats.Cli/Dockerfile
@@ -13,6 +14,7 @@
     depends_on:
       - watchstats.cli
     image: watchstats.seed
+    container_name: seeder
     build:
       context: .
       dockerfile: WatchStats.Seed/Dockerfile
