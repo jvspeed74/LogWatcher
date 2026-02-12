@@ -207,7 +207,7 @@ namespace WatchStats.Seed
                                     var timestamp = DateTime.UtcNow.ToString("o");
                                     var level = Levels[rnd.Next(Levels.Length)];
                                     var message = Messages[rnd.Next(Messages.Length)];
-                                    var latency = rnd.Next();
+                                    var latency = rnd.Next(1, 1000);  // todo: was accidentally unbound, consider making configurable
                                     sw.WriteLine($"{timestamp} {level} {message} latency_ms={latency}");
                                 }
                             }
