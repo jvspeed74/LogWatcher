@@ -1,23 +1,21 @@
 ﻿services:
-  watchstats.cli:
-    image: watchstats.cli
-    container_name: watcher
+  logwatcher.app:
+    image: logwatcher.app
     build:
       context: .
-      dockerfile: WatchStats.Cli/Dockerfile
+      dockerfile: LogWatcher.App/Dockerfile
     command:
       - ./../data  # assuming /app is the working directory in the container
     volumes:
       - ./temp:/data  # Mount host ./temp to container /data
-      
-  watchstats.seed:
+
+  logwatcher.seeder:
     depends_on:
-      - watchstats.cli
-    image: watchstats.seed
-    container_name: seeder
+      - logwatcher.app
+    image: logwatcher.seeder
     build:
       context: .
-      dockerfile: WatchStats.Seed/Dockerfile
+      dockerfile: LogWatcher.Seeder/Dockerfile
     volumes:
       - ./temp:/data
-      - ./WatchStats.Seed/appsettings.compose.json:/app/appsettings.json:ro  # Read-only mount for config file
+      - ./LogWatcher.Seeder/appsettings.compose.json:/app/appsettings.json:ro  # Read-only mount for config file
