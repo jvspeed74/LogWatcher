@@ -43,10 +43,17 @@ public static class CommandConfiguration
         
         workersOpt.Validators.Add(result =>
         {
-            var value = result.GetValueOrDefault<int>();
-            if (value < 1)
+            try
             {
-                result.AddError($"--workers must be at least 1, got {value}");
+                var value = result.GetValueOrDefault<int>();
+                if (value < 1)
+                {
+                    result.AddError($"--workers must be at least 1, got {value}");
+                }
+            }
+            catch
+            {
+                // Parse error already recorded by System.CommandLine
             }
         });
         
@@ -59,10 +66,17 @@ public static class CommandConfiguration
         
         queueCapacityOpt.Validators.Add(result =>
         {
-            var value = result.GetValueOrDefault<int>();
-            if (value < 1)
+            try
             {
-                result.AddError($"--queue-capacity must be at least 1, got {value}");
+                var value = result.GetValueOrDefault<int>();
+                if (value < 1)
+                {
+                    result.AddError($"--queue-capacity must be at least 1, got {value}");
+                }
+            }
+            catch
+            {
+                // Parse error already recorded by System.CommandLine
             }
         });
         
@@ -75,10 +89,17 @@ public static class CommandConfiguration
         
         reportIntervalOpt.Validators.Add(result =>
         {
-            var value = result.GetValueOrDefault<int>();
-            if (value < 1)
+            try
             {
-                result.AddError($"--report-interval-seconds must be at least 1, got {value}");
+                var value = result.GetValueOrDefault<int>();
+                if (value < 1)
+                {
+                    result.AddError($"--report-interval-seconds must be at least 1, got {value}");
+                }
+            }
+            catch
+            {
+                // Parse error already recorded by System.CommandLine
             }
         });
         
@@ -91,10 +112,17 @@ public static class CommandConfiguration
         
         topKOpt.Validators.Add(result =>
         {
-            var value = result.GetValueOrDefault<int>();
-            if (value < 1)
+            try
             {
-                result.AddError($"--topk must be at least 1, got {value}");
+                var value = result.GetValueOrDefault<int>();
+                if (value < 1)
+                {
+                    result.AddError($"--topk must be at least 1, got {value}");
+                }
+            }
+            catch
+            {
+                // Parse error already recorded by System.CommandLine
             }
         });
         
