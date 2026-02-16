@@ -10,18 +10,25 @@ using LogWatcher.Core.Processing;
 
 int exitCode;
 
-if (!CliParser.TryParse(args, out var config, out var parseError))
-{
-    if (parseError == "help")
-    {
-        Console.WriteLine(
-            "Usage: WatchStats <watchPath> [--workers N] [--queue-capacity N] [--report-interval-seconds N] [--topk N]");
-        return;
-    }
+var startupResult = Startup.Initialize(args);
 
-    Console.Error.WriteLine("Invalid arguments: " + parseError);
-    Environment.Exit(2);
+if (startupResult.ShouldExit)
+{
+    if (startupResult.Message != null)
+    {
+        if (startupResult.ExitCode == 0)
+        {
+            Console.WriteLine(startupResult.Message);
+        }
+        else
+        {
+            Console.Error.WriteLine(startupResult.Message);
+        }
+    }
+    Environment.Exit(startupResult.ExitCode);
 }
+
+var config = startupResult.Config!;
 
 BoundedEventBus<FsEvent>? bus = null;
 FileStateRegistry? registry;
