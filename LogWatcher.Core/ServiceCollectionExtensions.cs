@@ -47,7 +47,9 @@ public static class ServiceCollectionExtensions
         
         // Register transient/scoped services
         services.AddTransient<IFileTailer, FileTailer>();
-        services.AddTransient<IFileProcessor, FileProcessor>();
+        
+        // Register file processor as singleton since it's shared across all workers and is stateless
+        services.AddSingleton<IFileProcessor, FileProcessor>();
         
         // Register coordinator and reporter as singletons
         services.AddSingleton<IProcessingCoordinator>(sp =>

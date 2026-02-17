@@ -134,7 +134,7 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddLogWatcherCore_FileProcessor_IsTransient()
+    public void AddLogWatcherCore_FileProcessor_IsSingleton()
     {
         // Arrange
         var services = new ServiceCollection();
@@ -145,8 +145,8 @@ public sealed class ServiceCollectionExtensionsTests
         var instance1 = serviceProvider.GetRequiredService<IFileProcessor>();
         var instance2 = serviceProvider.GetRequiredService<IFileProcessor>();
 
-        // Assert
-        Assert.NotSame(instance1, instance2);
+        // Assert - FileProcessor is singleton since it's shared across all workers
+        Assert.Same(instance1, instance2);
     }
 
     [Fact]
