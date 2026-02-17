@@ -10,6 +10,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\LogWatcher.Core\LogWatcher.Core.csproj" />
+      <PackageReference Include="System.CommandLine" Version="3.0.0-preview.1.26104.118" />
     </ItemGroup>
 
     <ItemGroup>
