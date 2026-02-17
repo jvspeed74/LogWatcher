@@ -5,7 +5,7 @@ namespace LogWatcher.Core.IO
     /// <summary>
     /// Utility to read bytes that have been appended to a file since a given offset.
     /// </summary>
-    public sealed class FileTailer
+    public sealed class FileTailer : IFileTailer
     {
         // TODO: Consider making chunk size configurable per file type or based on available memory
         private const int DefaultChunkSize = 64 * 1024;

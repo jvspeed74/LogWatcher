@@ -8,7 +8,7 @@ namespace LogWatcher.Core.IO
     /// <summary>
     /// Adapter that wraps <see cref="FileSystemWatcher"/> and publishes <see cref="FsEvent"/> events to a <see cref="BoundedEventBus{T}"/>.
     /// </summary>
-    public sealed class FilesystemWatcherAdapter : IDisposable
+    public sealed class FilesystemWatcherAdapter : IFilesystemWatcherAdapter
     {
         private readonly BoundedEventBus<FsEvent> _bus;
         private readonly Func<string, bool> _isProcessable;

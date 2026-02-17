@@ -9,7 +9,7 @@ namespace LogWatcher.Core.Metrics
     /// Periodically requests worker stats swaps, merges per-worker buffers into a <see cref="GlobalSnapshot"/>, and prints a report.
     /// The reporter runs on a background thread when <see cref="Start"/> is called and stops after <see cref="Stop"/> is invoked.
     /// </summary>
-    public sealed class Reporter
+    public sealed class Reporter : IReporter
     {
         private readonly WorkerStats[] _workers;
         private readonly BoundedEventBus<FsEvent> _bus;

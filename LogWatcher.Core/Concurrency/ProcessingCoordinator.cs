@@ -7,10 +7,10 @@ namespace LogWatcher.Core.Concurrency
     /// <summary>
     /// Coordinates worker threads that dequeue filesystem events and dispatch processing work.
     /// </summary>
-    public sealed class ProcessingCoordinator
+    public sealed class ProcessingCoordinator : IProcessingCoordinator
     {
         private readonly BoundedEventBus<FsEvent> _bus;
-        private readonly FileStateRegistry _registry;
+        private readonly IFileStateRegistry _registry;
         private readonly IFileProcessor _processor;
         private readonly WorkerStats[] _workerStats;
         private readonly Thread[] _threads;
@@ -29,7 +29,7 @@ namespace LogWatcher.Core.Concurrency
         /// <param name="workerStats">Preallocated per-worker stats containers (length determines worker count).</param>
         /// <param name="workerCount">Requested worker count; the actual count will be at least 1.</param>
         /// <param name="dequeueTimeoutMs">Timeout in milliseconds for bus dequeue operations; clamped to a minimum of 10ms.</param>
-        public ProcessingCoordinator(BoundedEventBus<FsEvent> bus, FileStateRegistry registry, IFileProcessor processor,
+        public ProcessingCoordinator(BoundedEventBus<FsEvent> bus, IFileStateRegistry registry, IFileProcessor processor,
             WorkerStats[] workerStats, int workerCount = 4, int dequeueTimeoutMs = 200)
         {
             _bus = bus ?? throw new ArgumentNullException(nameof(bus));

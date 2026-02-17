@@ -5,7 +5,7 @@ namespace LogWatcher.Core.Processing;
 /// <summary>
 /// Registry of <see cref="FileState"/> objects keyed by file path. Supports concurrent access.
 /// </summary>
-public sealed class FileStateRegistry
+public sealed class FileStateRegistry : IFileStateRegistry
 {
     // TODO: Consider adding a cleanup mechanism for orphaned FileState entries when files are no longer being watched
     private readonly ConcurrentDictionary<string, FileState> _states = new(StringComparer.Ordinal);

@@ -1,9 +1,13 @@
+using LogWatcher.Core;
 using LogWatcher.Core.Concurrency;
 using LogWatcher.Core.Events;
 using LogWatcher.Core.IO;
 using LogWatcher.Core.Metrics;
 using LogWatcher.Core.Processing;
+using Microsoft.Extensions.DependencyInjection;
+
 namespace LogWatcher.App;
+
 /// <summary>
 /// Hosts and executes the LogWatcher application with validated configuration.
 /// Responsible for component wiring, startup, and shutdown coordination.
@@ -12,6 +16,7 @@ public static class ApplicationHost
 {
     private static int _shutdownRequested = 0;
     private static readonly ManualResetEventSlim _shutdownEvent = new(false);
+    
     /// <summary>
     /// Runs the application with the provided validated configuration parameters.
     /// </summary>
@@ -23,31 +28,26 @@ public static class ApplicationHost
     /// <returns>Exit code: 0 for success, 1 for runtime error.</returns>
     public static int Run(string watchPath, int workers, int queueCapacity, int reportIntervalSeconds, int topK)
     {
-        // todo split up component construction and component startup into separate steps (same method)
+        IServiceProvider? serviceProvider = null;
+        IFilesystemWatcherAdapter? watcher = null;
+        IProcessingCoordinator? coordinator = null;
+        IReporter? reporter = null;
         BoundedEventBus<FsEvent>? bus = null;
-        FileStateRegistry? registry = null;
-        FileTailer? tailer = null;
-        FileProcessor? processor = null;
-        WorkerStats[]? workerStats = null;
-        ProcessingCoordinator? coordinator = null;
-        Reporter? reporter = null;
-        FilesystemWatcherAdapter? watcher = null;
+        
         try
         {
-            // Construct components
-            bus = new BoundedEventBus<FsEvent>(queueCapacity);
-            registry = new FileStateRegistry();
-            tailer = new FileTailer();
-            processor = new FileProcessor(tailer);
-            workerStats = new WorkerStats[workers];
-            for (int i = 0; i < workerStats.Length; i++)
-            {
-                workerStats[i] = new WorkerStats();
-            }
-            coordinator = new ProcessingCoordinator(bus, registry, processor, workerStats, 
-                workerCount: workers);
-            reporter = new Reporter(workerStats, bus, topK, reportIntervalSeconds);
-            watcher = new FilesystemWatcherAdapter(watchPath, bus);
+            // Build DI container
+            var services = new ServiceCollection();
+            services.AddLogWatcherCore(workers, queueCapacity, reportIntervalSeconds, topK);
+            services.AddFilesystemWatcher(watchPath);
+            serviceProvider = services.BuildServiceProvider();
+            
+            // Resolve services
+            bus = serviceProvider.GetRequiredService<BoundedEventBus<FsEvent>>();
+            coordinator = serviceProvider.GetRequiredService<IProcessingCoordinator>();
+            reporter = serviceProvider.GetRequiredService<IReporter>();
+            watcher = serviceProvider.GetRequiredService<IFilesystemWatcherAdapter>();
+            
             // Register shutdown handlers
             Console.CancelKeyPress += (_, e) =>
             {
@@ -56,14 +56,18 @@ public static class ApplicationHost
             };
             AppDomain.CurrentDomain.ProcessExit += (_, _) => 
                 TriggerShutdown(bus, watcher, coordinator, reporter);
+            
             // Start components in order
             coordinator.Start();
             reporter.Start();
             watcher.Start();
+            
             var configSummary = $"WatchPath={watchPath}; Workers={workers}; QueueCapacity={queueCapacity}; ReportIntervalSeconds={reportIntervalSeconds}; TopK={topK}";
             Console.WriteLine("Started: " + configSummary);
+            
             // Wait until shutdown is requested
             WaitForShutdown();
+            
             return 0;
         }
         catch (Exception ex)
@@ -75,14 +79,21 @@ public static class ApplicationHost
         {
             // Ensure final cleanup
             TriggerShutdown(bus, watcher, coordinator, reporter);
+            
+            // Dispose service provider
+            if (serviceProvider is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
         }
     }
+    
     /// <summary>
     /// Requests a coordinated shutdown of the provided host components. Safe to call multiple times.
     /// Non-null components will be stopped/disposed where applicable; exceptions thrown by components are logged to <see cref="Console.Error"/>.
     /// </summary>
-    private static void TriggerShutdown(BoundedEventBus<FsEvent>? bus, FilesystemWatcherAdapter? watcher,
-        ProcessingCoordinator? coordinator, Reporter? reporter)
+    private static void TriggerShutdown(BoundedEventBus<FsEvent>? bus, IFilesystemWatcherAdapter? watcher,
+        IProcessingCoordinator? coordinator, IReporter? reporter)
     {
         if (Interlocked.Exchange(ref _shutdownRequested, 1) == 1) return;
         Console.WriteLine("Shutdown requested...");
