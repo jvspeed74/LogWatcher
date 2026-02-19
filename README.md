@@ -52,57 +52,105 @@ These were **intentionally restrictive** to encourage creativity and learning:
 
 ```mermaid
 graph TB
-    subgraph Input["Input Layer"]
+    subgraph Ingestion["Ingestion"]
         FS["File System"]
-        FSW["FileSystemWatcher"]
+        FSW["FilesystemWatcherAdapter"]
+        FEV["FsEvent<br/>Created|Modified|Deleted|Renamed"]
     end
 
-    subgraph EventBus["Event Bus Layer"]
-        BEB["BoundedEventBus<FsEvent>"]
-        EV["FsEvent<br/>Created|Modified|Deleted|Renamed"]
+    subgraph Events["Events"]
+        BEB["BoundedEventBus&lt;FsEvent&gt;"]
     end
 
-    subgraph Coordination["Coordination Layer"]
-        PC["ProcessingCoordinator<br/>N Worker Threads"]
+    subgraph FileManagement["FileManagement"]
         FSR["FileStateRegistry<br/>Per-File State Machine"]
+        FS_State["FileState<br/>Offset + Flags + Gate"]
+        PLB["PartialLineBuffer<br/>Carryover Storage"]
     end
 
-    subgraph Processing["Processing Layer"]
-        FP["FileProcessor<br/>Read & Parse"]
-        FT["FileTailer<br/>Track File Position"]
-        LP["LogParser<br/>Parse Log Lines"]
-        USS["Utf8LineScanner<br/>Span-based Scanning"]
+    subgraph Processing["Processing"]
+        PC["ProcessingCoordinator<br/>N Worker Threads"]
+        FP["FileProcessor<br/>Orchestrator"]
+
+        subgraph Tailing["Tailing"]
+            FT["FileTailer<br/>Chunked Reads"]
+            TRS["TailReadStatus"]
+        end
+
+        subgraph Scanning["Scanning"]
+            USS["Utf8LineScanner<br/>Line Splitting"]
+        end
+
+        subgraph Parsing["Parsing"]
+            LP["LogParser<br/>Parse Records"]
+            LL["LogLevel"]
+            PLL["ParsedLogLine"]
+        end
     end
 
-    subgraph Metrics["Metrics & Stats Layer"]
-        WS["WorkerStats<br/>Per-Worker Stats"]
-        WSB["WorkerStatsBuffer<br/>Swap Buffer"]
-        LH["LatencyHistogram<br/>Track Latencies"]
-        TK["TopK<br/>Most Frequent Messages"]
-        GS["GlobalSnapshot<br/>Aggregate View"]
+    subgraph Statistics["Statistics"]
+        WSB["WorkerStatsBuffer<br/>Per-Interval Metrics"]
+        LH["LatencyHistogram<br/>Bounded Distribution"]
+        TK["TopK<br/>Frequency Computation"]
     end
 
-    subgraph Reporting["Reporting Layer"]
-        REP["Reporter<br/>Format & Output"]
-        STDOUT["Console Output"]
+    subgraph Coordination_["Coordination"]
+        WS["WorkerStats<br/>Double-Buffer Swap Protocol"]
+    end
+
+    subgraph Reporting["Reporting"]
+        GS["GlobalSnapshot<br/>Merged Interval View"]
+        REP["Reporter<br/>Aggregation & Output"]
     end
 
     FS -->|File Changes| FSW
-    FSW -->|Adapt Events| BEB
+    FSW -->|FsEvent| BEB
+
     BEB -->|Dequeue| PC
-    PC -->|Lookup State| FSR
-    PC -->|Process File| FP
-    FP -->|Get Position| FT
+
+    PC -->|Lookup/Create| FSR
+    FSR -->|State| FS_State
+    FS_State -->|Carryover| PLB
+
+    PC -->|Orchestrate| FP
+
+    FP -->|Read Chunks| FT
+    FT -->|Status| TRS
     FT -->|Raw Bytes| USS
+
     USS -->|Lines| LP
-    LP -->|Stats| WS
-    LP -->|Message| TK
-    LP -->|Latency| LH
-    WS -->|Buffer| WSB
-    TK -->|Buffer| GS
-    LH -->|Buffer| GS
+    LP -->|Level| LL
+    LP -->|ParsedLogLine| PLL
+
+    PLL -->|Counters| WSB
+    PLL -->|Message| TK
+    PLL -->|Latency| LH
+
+    WSB -->|Contains| Statistics
+    TK -->|Contains| Statistics
+    LH -->|Contains| Statistics
+
+    PC -->|Coordinates| WS
+    WS -->|Owns| WSB
+
+    WS -->|Swap Request| REP
+    WSB -->|Merge| GS
+    TK -->|Merge| GS
+    LH -->|Merge| GS
+
     GS -->|Snapshot| REP
-    REP -->|Output| STDOUT
+    REP -->|Output| STDOUT["Console Output"]
+
+    style Ingestion fill:#e1f5ff
+    style Events fill:#f3e5f5
+    style FileManagement fill:#fce4ec
+    style Processing fill:#fff3e0
+    style Tailing fill:#fff8e1
+    style Scanning fill:#fff8e1
+    style Parsing fill:#fff8e1
+    style Statistics fill:#f1f8e9
+    style Coordination_ fill:#e0f2f1
+    style Reporting fill:#ede7f6
 ```
 
 ---
