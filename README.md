@@ -6,7 +6,7 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
-> [Insert console output GIF or screenshot here]
+![](./docs/assets/terminal_demonstration.gif)
 
 ---
 
