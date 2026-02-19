@@ -1,7 +1,9 @@
-﻿using LogWatcher.Core.Concurrency;
+﻿using LogWatcher.Core.Coordination;
 using LogWatcher.Core.Events;
-using LogWatcher.Core.Metrics;
+using LogWatcher.Core.Ingestion;
 using LogWatcher.Core.Processing;
+using LogWatcher.Core.Processing.Parsing;
+using LogWatcher.Core.Reporting;
 
 namespace LogWatcher.Tests.Integration;
 

@@ -1,8 +1,11 @@
-using LogWatcher.Core.Concurrency;
+using LogWatcher.Core.Coordination;
 using LogWatcher.Core.Events;
-using LogWatcher.Core.IO;
-using LogWatcher.Core.Metrics;
+using LogWatcher.Core.FileManagement;
+using LogWatcher.Core.Ingestion;
 using LogWatcher.Core.Processing;
+using LogWatcher.Core.Processing.Tailing;
+using LogWatcher.Core.Reporting;
+
 namespace LogWatcher.App;
 /// <summary>
 /// Hosts and executes the LogWatcher application with validated configuration.

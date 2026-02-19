@@ -1,7 +1,10 @@
 ﻿using System.Text;
 
-using LogWatcher.Core.IO;
-using LogWatcher.Core.Metrics;
+using LogWatcher.Core.FileManagement;
+using LogWatcher.Core.Processing.Parsing;
+using LogWatcher.Core.Processing.Scanning;
+using LogWatcher.Core.Processing.Tailing;
+using LogWatcher.Core.Statistics;
 
 namespace LogWatcher.Core.Processing
 {
