@@ -1,7 +1,7 @@
 ﻿using LogWatcher.Core.Events;
 using LogWatcher.Core.Ingestion;
 
-namespace LogWatcher.Tests.Unit.Events;
+namespace LogWatcher.Tests.Unit.Core;
 
 public class FilesystemWatcherAdapterTests : IDisposable
 {

@@ -1,6 +1,6 @@
 ﻿using LogWatcher.Core.Statistics;
 
-namespace LogWatcher.Tests.Unit.Core.Metrics;
+namespace LogWatcher.Tests.Unit.Core;
 
 public class TopKTests
 {

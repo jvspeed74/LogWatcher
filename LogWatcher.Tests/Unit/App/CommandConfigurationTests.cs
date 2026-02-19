@@ -1,7 +1,6 @@
 ﻿using LogWatcher.App;
-using System.CommandLine;
 
-namespace LogWatcher.Tests.Unit.Cli;
+namespace LogWatcher.Tests.Unit.App;
 
 public class CommandConfigurationTests : IDisposable
 {

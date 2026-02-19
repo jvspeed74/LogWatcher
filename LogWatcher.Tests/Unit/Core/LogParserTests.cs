@@ -1,8 +1,8 @@
 ﻿using System.Text;
-using LogWatcher.Core.Processing;
+
 using LogWatcher.Core.Processing.Parsing;
 
-namespace LogWatcher.Tests.Unit.Core.Processing;
+namespace LogWatcher.Tests.Unit.Core;
 
 public class LogParserTests
 {
