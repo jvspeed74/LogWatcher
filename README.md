@@ -13,9 +13,23 @@
 ## Why This Exists
 
 Built as a learning project alongside SAA-C03 preparation to develop hands-on intuition for system design tradeoffs —
-specifically consistency models, backpressure, and memory management. A log monitoring tool turned out to be a useful
-forcing function: it's simple enough to build solo, but hard enough to get right that every design decision has a real
-consequence.
+specifically consistency models, backpressure, and memory management.
+
+I wanted to see what patterns like bounded queues, decoupled producers and consumers, load shedding, and eventual
+consistency actually look like in working code.
+
+### Constraints
+
+Before considering any design, I gave myself a set of constraints to force tradeoffs and guide decisions.
+
+These were **intentionally restrictive** to encourage creativity and learning:
+
+- **No external dependencies** — Only .NET built-in libraries; no third-party packages for parsing, metrics, or
+  concurrency
+- **Eventual consistency** — In-memory state may be temporarily stale or inconsistent across workers, but must
+  converge to correctness over time without manual intervention
+- **State must never be corrupted** — Handle data races and cross thread operations gracefully without crashing or
+  losing consistency
 
 ---
 
