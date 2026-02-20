@@ -1,4 +1,4 @@
-﻿using LogWatcher.Core.Events;
+﻿using LogWatcher.Core.Backpressure;
 
 namespace LogWatcher.Core.Ingestion
 {

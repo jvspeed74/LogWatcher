@@ -1,4 +1,4 @@
-﻿namespace LogWatcher.Core.Events
+﻿namespace LogWatcher.Core.Backpressure
 {
     /// <summary>
     /// Thread-safe bounded FIFO event bus with drop-newest semantics when full.
