@@ -117,4 +117,25 @@ public class Utf8LineScannerTests
         Assert.Empty(emitted);
         Assert.Equal("partial", GetString(carry.AsSpan()));
     }
+
+    [Fact]
+    [Invariant("SCAN-005")]
+    public void Scan_SpanPassedToOnLine_MustBeConsumedWithinCallback()
+    {
+        // The span passed to onLine is only valid for the duration of the callback.
+        // Callers must convert or copy it immediately and must not retain it across calls.
+        var carry = default(PartialLineBuffer);
+        var linesCollected = new List<string>();
+        var bytes = Encoding.UTF8.GetBytes("alpha\nbeta\n");
+
+        Utf8LineScanner.Scan(bytes, ref carry, span =>
+        {
+            // Consume span immediately by converting to string within the callback
+            linesCollected.Add(GetString(span));
+        });
+
+        Assert.Equal(2, linesCollected.Count);
+        Assert.Equal("alpha", linesCollected[0]);
+        Assert.Equal("beta", linesCollected[1]);
+    }
 }

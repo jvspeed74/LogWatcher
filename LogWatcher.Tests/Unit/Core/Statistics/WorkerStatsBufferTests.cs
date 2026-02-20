@@ -1,3 +1,4 @@
+using LogWatcher.Core.Processing.Parsing;
 using LogWatcher.Core.Statistics;
 
 namespace LogWatcher.Tests.Unit.Core.Statistics;
@@ -55,5 +56,31 @@ public class WorkerStatsBufferTests
         b.Reset();
         Assert.Equal(0, b.Histogram.Count);
         Assert.Null(b.Histogram.Percentile(0.5));
+    }
+
+    [Fact]
+    [Invariant("STAT-001")]
+    public void LevelCounts_IndexedByLogLevelEnumValue_OutOfRangeIndexIsIgnored()
+    {
+        var buf = new WorkerStatsBuffer();
+
+        buf.IncrementLevel(LogLevel.Info);
+        buf.IncrementLevel(LogLevel.Warn);
+        buf.IncrementLevel(LogLevel.Error);
+        buf.IncrementLevel(LogLevel.Debug);
+
+        // Verify counts are indexed by the integer value of each LogLevel
+        Assert.Equal(1, buf.LevelCounts[(int)LogLevel.Info]);
+        Assert.Equal(1, buf.LevelCounts[(int)LogLevel.Warn]);
+        Assert.Equal(1, buf.LevelCounts[(int)LogLevel.Error]);
+        Assert.Equal(1, buf.LevelCounts[(int)LogLevel.Debug]);
+
+        // An unrecognized (out-of-range) index must be silently ignored — no exception
+        var ex = Record.Exception(() =>
+        {
+            buf.IncrementLevel((LogLevel)9999);
+            buf.IncrementLevel((LogLevel)(-1));
+        });
+        Assert.Null(ex);
     }
 }

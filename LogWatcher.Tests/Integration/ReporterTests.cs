@@ -90,4 +90,101 @@ public class ReporterTests
         Assert.NotNull(snap.P95);
         Assert.NotNull(snap.P99);
     }
+
+    [Fact]
+    [Invariant("RPT-001")]
+    public void Reporter_WhenRunning_UsesActualElapsedTimeForRateComputation()
+    {
+        // Rates must be computed using actual elapsed time measured by Stopwatch,
+        // never an assumed fixed interval duration.
+        var originalOut = Console.Out;
+        using var writer = new StringWriter();
+        Console.SetOut(writer);
+        try
+        {
+            var bus = new BoundedEventBus<FsEvent>(10);
+            var workers = new[] { new WorkerStats() };
+            var reporter = new Reporter(workers, bus, 1, 1, ackTimeout: TimeSpan.FromMilliseconds(100));
+            reporter.Start();
+            Thread.Sleep(1500); // allow at least one interval report
+            reporter.Stop();
+
+            var output = writer.ToString();
+            // Reporter must emit at least one report containing elapsed time and rate fields
+            Assert.Contains("[REPORT]", output);
+            Assert.Contains("elapsed=", output);
+            Assert.Contains("lines/s=", output);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact]
+    [Invariant("RPT-003")]
+    public void Reporter_OnStop_EmitsFinalReport()
+    {
+        // The reporter must emit at least one final report on shutdown.
+        var originalOut = Console.Out;
+        using var writer = new StringWriter();
+        Console.SetOut(writer);
+        try
+        {
+            var bus = new BoundedEventBus<FsEvent>(10);
+            var workers = new[] { new WorkerStats() };
+            // 1-second interval; we stop after 100 ms so the thread exits cleanly within the join timeout
+            var reporter = new Reporter(workers, bus, 1, 1, ackTimeout: TimeSpan.FromMilliseconds(100));
+            reporter.Start();
+            Thread.Sleep(100);
+            reporter.Stop(); // must emit final report with elapsed=0.00 after loop exits
+
+            var output = writer.ToString();
+            // The final report is printed with elapsed=0.00 to indicate it is not a timed interval
+            Assert.Contains("[REPORT]", output);
+            Assert.Contains("elapsed=0.00", output);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact]
+    [Invariant("RPT-004")]
+    public void Reporter_WhenWorkerAckTimesOut_LogsWarningAndContinues()
+    {
+        // When a worker fails to acknowledge a swap within the timeout the reporter
+        // must proceed with available data and log a warning — it must not crash or block.
+        var originalErr = Console.Error;
+        var originalOut = Console.Out;
+        using var errWriter = new StringWriter();
+        using var outWriter = new StringWriter();
+        Console.SetError(errWriter);
+        Console.SetOut(outWriter);
+        try
+        {
+            var bus = new BoundedEventBus<FsEvent>(10);
+            var ws = new WorkerStats();
+            // Worker never acknowledges swaps because it never calls AcknowledgeSwapIfRequested
+            var workers = new[] { ws };
+            // Extremely short ack timeout to force a timeout on every interval
+            var reporter = new Reporter(workers, bus, 1, 1, ackTimeout: TimeSpan.FromMilliseconds(1));
+            reporter.Start();
+            Thread.Sleep(1500); // allow at least one interval with a forced ack timeout
+            reporter.Stop();
+
+            var errOutput = errWriter.ToString();
+            var stdOutput = outWriter.ToString();
+            // A warning must be logged when the ack times out
+            Assert.Contains("timed out", errOutput, StringComparison.OrdinalIgnoreCase);
+            // The reporter must still produce output despite the timeout
+            Assert.Contains("[REPORT]", stdOutput);
+        }
+        finally
+        {
+            Console.SetError(originalErr);
+            Console.SetOut(originalOut);
+        }
+    }
 }

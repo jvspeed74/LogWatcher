@@ -42,6 +42,26 @@ public class WorkerStatsSwapTests
     }
 
     [Fact]
+    [Invariant("CD-005")]
+    public void GetInactiveBufferForMerge_CalledAfterSwapAck_ContainsSwappedData()
+    {
+        var ws = new WorkerStats();
+        ws.Active.LinesProcessed = 99;
+
+        // Reporter requests swap; worker acknowledges at its next safe point
+        ws.RequestSwap();
+        ws.AcknowledgeSwapIfRequested();
+
+        // Reporter must wait for the ack before reading the inactive buffer (CD-005)
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        ws.WaitForSwapAck(cts.Token);
+
+        // Only after the ack does the reporter read; inactive buffer must hold the pre-swap data
+        var inactive = ws.GetInactiveBufferForMerge();
+        Assert.Equal(99, inactive.LinesProcessed);
+    }
+
+    [Fact]
     [Invariant("CD-004")]
     public void AcknowledgeSwapIfRequested_WhenNoRequestPending_DoesNothing()
     {
