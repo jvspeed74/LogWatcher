@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 
 using LogWatcher.Core.Backpressure;
 
@@ -33,20 +33,20 @@ public class BoundedEventBusTests
     }
 
     [Fact]
-    public void Stop_UnblocksDequeueAndReturnsFalseWhenEmpty()
+    public async Task Stop_UnblocksDequeueAndReturnsFalseWhenEmpty()
     {
         var bus = new BoundedEventBus<int>(2);
 
         // Start a consumer that waits
-        var t = Task.Run(() => { Assert.False(bus.TryDequeue(out var item, 500)); });
+        var t = Task.Run(() => { Assert.False(bus.TryDequeue(out int _, 500)); });
 
         Thread.Sleep(50);
         bus.Stop();
-        t.Wait();
+        await t;
     }
 
-    [Fact(Skip = "Flaky test, nondeterministic failure, needs investigation")]
-    public void MultiProducer_DoesNotCorruptQueue()
+    [Fact]
+    public async Task MultiProducer_DoesNotCorruptQueue()
     {
         var bus = new BoundedEventBus<int>(10000);
         var producers = 4;
@@ -62,19 +62,19 @@ public class BoundedEventBusTests
             }));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
 
         // Drain
         var count = 0;
-        while (bus.TryDequeue(out var item, 10)) count++;
+        while (bus.TryDequeue(out int _, 10)) count++;
 
         Assert.Equal(producers * perProducer, count);
         Assert.Equal(producers * perProducer, bus.PublishedCount);
         Assert.Equal(0, bus.DroppedCount);
     }
 
-    [Fact(Skip = "Flaky test, nondeterministic failure, needs investigation")]
-    public void MultiConsumer_ConsumesAllPublishedItems()
+    [Fact]
+    public async Task MultiConsumer_ConsumesAllPublishedItems()
     {
         var bus = new BoundedEventBus<int>(10000);
         var items = 10000;
@@ -89,7 +89,7 @@ public class BoundedEventBusTests
                 while (bus.TryDequeue(out var v, 10)) collected.Add(v);
             }));
 
-        Task.WaitAll(tasks.ToArray(), 2000);
+        await Task.WhenAll(tasks);
 
         Assert.Equal(items, collected.Count);
         Assert.Equal(items, bus.PublishedCount);

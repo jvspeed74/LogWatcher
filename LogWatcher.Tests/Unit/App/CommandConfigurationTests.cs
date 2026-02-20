@@ -1,4 +1,4 @@
-﻿using LogWatcher.App;
+using LogWatcher.App;
 
 namespace LogWatcher.Tests.Unit.App;
 
@@ -28,9 +28,9 @@ public class CommandConfigurationTests : IDisposable
     {
         var args = new[] { _tmpDir };
         var command = CommandConfiguration.CreateRootCommand();
-        
+
         var parseResult = command.Parse(args);
-        
+
         Assert.Empty(parseResult.Errors);
     }
 
@@ -39,9 +39,9 @@ public class CommandConfigurationTests : IDisposable
     {
         var args = new[] { _tmpDir, "--workers", "3", "-q", "500", "-r", "5", "-k", "7" };
         var command = CommandConfiguration.CreateRootCommand();
-        
+
         var parseResult = command.Parse(args);
-        
+
         Assert.Empty(parseResult.Errors);
     }
 
@@ -50,9 +50,9 @@ public class CommandConfigurationTests : IDisposable
     {
         var args = Array.Empty<string>();
         var command = CommandConfiguration.CreateRootCommand();
-        
+
         var parseResult = command.Parse(args);
-        
+
         Assert.NotEmpty(parseResult.Errors);
     }
 
@@ -61,9 +61,9 @@ public class CommandConfigurationTests : IDisposable
     {
         var args = new[] { _tmpDir, "--workers", "notanumber" };
         var command = CommandConfiguration.CreateRootCommand();
-        
+
         var parseResult = command.Parse(args);
-        
+
         Assert.NotEmpty(parseResult.Errors);
     }
 
@@ -72,9 +72,9 @@ public class CommandConfigurationTests : IDisposable
     {
         var args = new[] { "--help" };
         var command = CommandConfiguration.CreateRootCommand();
-        
+
         var parseResult = command.Parse(args);
-        
+
         // Help was requested, should have no errors
         Assert.Empty(parseResult.Errors);
     }

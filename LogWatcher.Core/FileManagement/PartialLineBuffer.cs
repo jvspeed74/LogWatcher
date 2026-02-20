@@ -1,4 +1,4 @@
-﻿namespace LogWatcher.Core.FileManagement;
+namespace LogWatcher.Core.FileManagement;
 
 /// <summary>
 /// Holds carry-over bytes for a single file between chunk scans.
@@ -9,12 +9,12 @@ public struct PartialLineBuffer
     /// <summary>
     /// Underlying buffer that stores appended bytes. May be <c>null</c> when empty.
     /// </summary>
-    public byte[]? Buffer;
+    public byte[]? Buffer { get; private set; }
 
     /// <summary>
     /// Number of valid bytes in <see cref="Buffer"/> (0..Buffer.Length).
     /// </summary>
-    public int Length;
+    public int Length { get; private set; }
 
     private const int InitialSize = 256;
 
@@ -31,10 +31,20 @@ public struct PartialLineBuffer
     }
 
     /// <summary>
-    /// Clears the buffer by resetting <see cref="Length"/> to zero. The underlying array is not freed.
+    /// Clears the buffer by resetting <see cref="Length"/> to zero. The underlying array is retained for reuse.
+    /// To also release the underlying array, use <see cref="Release"/>.
     /// </summary>
     public void Clear()
     {
+        Length = 0;
+    }
+
+    /// <summary>
+    /// Resets the buffer to its initial empty state and releases the underlying array reference for GC collection.
+    /// </summary>
+    public void Release()
+    {
+        Buffer = null;
         Length = 0;
     }
 

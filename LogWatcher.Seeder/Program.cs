@@ -1,9 +1,10 @@
-﻿// Replace the trivial template with the continuous seed writer implementation
+// Replace the trivial template with the continuous seed writer implementation
 using System;
 using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Microsoft.Extensions.Configuration;
 
 namespace LogWatcher.Seeder
@@ -77,7 +78,7 @@ namespace LogWatcher.Seeder
 
             var startTime = DateTime.UtcNow;
 
-            Console.WriteLine("Starting seed writer. TempPath={0} MaxTotalFileOperations={1} ConcurrentWorkers={2}", 
+            Console.WriteLine("Starting seed writer. TempPath={0} MaxTotalFileOperations={1} ConcurrentWorkers={2}",
                 tempPath, config.MaxTotalFileOperations, config.ConcurrentWorkers);
 
             // Configure ThreadPool for maximum throughput
@@ -141,8 +142,8 @@ namespace LogWatcher.Seeder
                     // Check fail-safe
                     if (config.MaxTotalFileOperations > 0)
                     {
-                        var totalOps = Interlocked.Read(ref _createdFiles) + 
-                                      Interlocked.Read(ref _appendedFiles) + 
+                        var totalOps = Interlocked.Read(ref _createdFiles) +
+                                      Interlocked.Read(ref _appendedFiles) +
                                       Interlocked.Read(ref _deletedFiles);
                         if (totalOps >= config.MaxTotalFileOperations)
                         {
@@ -225,7 +226,7 @@ namespace LogWatcher.Seeder
                             // occasionally print a small log line
                             if ((Interlocked.Read(ref _iterations) & 0xFF) == 0)
                             {
-                                Console.WriteLine("[Worker {0}] Wrote {1} lines to {2} (totalWrites={3})", 
+                                Console.WriteLine("[Worker {0}] Wrote {1} lines to {2} (totalWrites={3})",
                                     workerId, linesToAdd, Path.GetFileName(filePath), Interlocked.Read(ref _totalLinesWritten));
                             }
                         }

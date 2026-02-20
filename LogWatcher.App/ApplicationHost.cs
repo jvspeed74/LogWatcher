@@ -3,7 +3,6 @@ using LogWatcher.Core.Coordination;
 using LogWatcher.Core.FileManagement;
 using LogWatcher.Core.Ingestion;
 using LogWatcher.Core.Processing;
-using LogWatcher.Core.Processing.Tailing;
 using LogWatcher.Core.Reporting;
 
 namespace LogWatcher.App;
@@ -29,7 +28,6 @@ public static class ApplicationHost
         // todo split up component construction and component startup into separate steps (same method)
         BoundedEventBus<FsEvent>? bus = null;
         FileStateRegistry? registry = null;
-        FileTailer? tailer = null;
         FileProcessor? processor = null;
         WorkerStats[]? workerStats = null;
         ProcessingCoordinator? coordinator = null;
@@ -40,14 +38,13 @@ public static class ApplicationHost
             // Construct components
             bus = new BoundedEventBus<FsEvent>(queueCapacity);
             registry = new FileStateRegistry();
-            tailer = new FileTailer();
-            processor = new FileProcessor(tailer);
+            processor = new FileProcessor();
             workerStats = new WorkerStats[workers];
             for (int i = 0; i < workerStats.Length; i++)
             {
                 workerStats[i] = new WorkerStats();
             }
-            coordinator = new ProcessingCoordinator(bus, registry, processor, workerStats, 
+            coordinator = new ProcessingCoordinator(bus, registry, processor, workerStats,
                 workerCount: workers);
             reporter = new Reporter(workerStats, bus, topK, reportIntervalSeconds);
             watcher = new FilesystemWatcherAdapter(watchPath, bus);
@@ -57,7 +54,7 @@ public static class ApplicationHost
                 e.Cancel = true;
                 TriggerShutdown(bus, watcher, coordinator, reporter);
             };
-            AppDomain.CurrentDomain.ProcessExit += (_, _) => 
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
                 TriggerShutdown(bus, watcher, coordinator, reporter);
             // Start components in order
             coordinator.Start();
@@ -78,6 +75,11 @@ public static class ApplicationHost
         {
             // Ensure final cleanup
             TriggerShutdown(bus, watcher, coordinator, reporter);
+            if (workerStats != null)
+            {
+                foreach (var ws in workerStats)
+                    ws?.Dispose();
+            }
         }
     }
     /// <summary>

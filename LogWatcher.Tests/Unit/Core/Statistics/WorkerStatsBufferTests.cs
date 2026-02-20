@@ -1,4 +1,4 @@
-﻿using LogWatcher.Core.Statistics;
+using LogWatcher.Core.Statistics;
 
 namespace LogWatcher.Tests.Unit.Core.Statistics;
 

@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 
 using LogWatcher.Core.FileManagement;
 using LogWatcher.Core.Processing.Scanning;

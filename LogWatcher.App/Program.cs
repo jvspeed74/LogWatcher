@@ -1,4 +1,4 @@
-﻿using LogWatcher.App;
+using LogWatcher.App;
 
 var rootCommand = CommandConfiguration.CreateRootCommand();
 var parseResult = rootCommand.Parse(args);

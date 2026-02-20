@@ -20,7 +20,7 @@ public static class CommandConfiguration
         {
             Description = "Directory path to watch for log file changes"
         };
-        
+
         watchPathArg.Validators.Add(result =>
         {
             var path = result.GetValueOrDefault<string>();
@@ -33,14 +33,14 @@ public static class CommandConfiguration
                 result.AddError($"watchPath does not exist: {path}");
             }
         });
-        
+
         // Define --workers option with short alias -w
         var workersOpt = new Option<int>("--workers", new[] { "--workers", "-w" })
         {
             Description = "Number of worker threads for processing log files",
             DefaultValueFactory = _ => Environment.ProcessorCount
         };
-        
+
         workersOpt.Validators.Add(result =>
         {
             try
@@ -56,14 +56,14 @@ public static class CommandConfiguration
                 // Parse error already recorded by System.CommandLine
             }
         });
-        
+
         // Define --queue-capacity option with short alias -q
         var queueCapacityOpt = new Option<int>("--queue-capacity", new[] { "--queue-capacity", "-q" })
         {
             Description = "Maximum capacity of the filesystem event queue",
             DefaultValueFactory = _ => 10000
         };
-        
+
         queueCapacityOpt.Validators.Add(result =>
         {
             try
@@ -79,14 +79,14 @@ public static class CommandConfiguration
                 // Parse error already recorded by System.CommandLine
             }
         });
-        
+
         // Define --report-interval-seconds option with short alias -r
         var reportIntervalOpt = new Option<int>("--report-interval-seconds", new[] { "--report-interval-seconds", "-r" })
         {
             Description = "Interval in seconds between statistics reports",
             DefaultValueFactory = _ => 2
         };
-        
+
         reportIntervalOpt.Validators.Add(result =>
         {
             try
@@ -102,14 +102,14 @@ public static class CommandConfiguration
                 // Parse error already recorded by System.CommandLine
             }
         });
-        
+
         // Define --topk option with short alias -k
         var topKOpt = new Option<int>("--topk", new[] { "--topk", "-k" })
         {
             Description = "Number of top URLs to include in reports",
             DefaultValueFactory = _ => 10
         };
-        
+
         topKOpt.Validators.Add(result =>
         {
             try
@@ -125,7 +125,7 @@ public static class CommandConfiguration
                 // Parse error already recorded by System.CommandLine
             }
         });
-        
+
         // Build root command
         var rootCommand = new RootCommand("High-performance log file watcher with real-time statistics")
         {
@@ -135,7 +135,7 @@ public static class CommandConfiguration
             reportIntervalOpt,
             topKOpt
         };
-        
+
         // Register command handler
         rootCommand.SetAction(parseResult =>
         {
@@ -144,23 +144,23 @@ public static class CommandConfiguration
             var queueCapacity = parseResult.GetValue(queueCapacityOpt);
             var reportInterval = parseResult.GetValue(reportIntervalOpt);
             var topK = parseResult.GetValue(topKOpt);
-            
+
             // All validation has already been performed by System.CommandLine validators
             // Convert relative paths to absolute paths (matching the original CliConfig behavior)
             var absoluteWatchPath = Path.GetFullPath(watchPath);
-            
+
             // Delegate to ApplicationHost
             // ApplicationHost.Run() has a try/finally block that ensures ALL cleanup happens:
             //   - Stops all components (watcher, coordinator, reporter)
             //   - Disposes resources
             //   - Returns exit code only AFTER finally block completes
             var exitCode = ApplicationHost.Run(absoluteWatchPath, workers, queueCapacity, reportInterval, topK);
-            
+
             // At this point, ALL cleanup is complete (ApplicationHost.Run's finally block has executed)
             // It's now safe to exit with the appropriate code
             Environment.Exit(exitCode);
         });
-        
+
         return rootCommand;
     }
 }

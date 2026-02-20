@@ -1,6 +1,5 @@
-﻿using LogWatcher.Core.FileManagement;
+using LogWatcher.Core.FileManagement;
 using LogWatcher.Core.Processing;
-using LogWatcher.Core.Processing.Tailing;
 using LogWatcher.Core.Statistics;
 
 namespace LogWatcher.Tests.Unit.Core.Processing;
@@ -37,8 +36,7 @@ public class FileProcessorTests : IDisposable
         var p = MakePath("p1.log");
         File.WriteAllText(p, "2023-01-02T03:04:05Z INFO key1 latency_ms=10\n2023-01-02T03:04:06Z WARN key2\n");
 
-        var tailer = new FileTailer();
-        var fp = new FileProcessor(tailer);
+        var fp = new FileProcessor();
         var reg = new FileStateRegistry();
         var state = reg.GetOrCreate(p);
         lock (state.Gate)
@@ -59,8 +57,7 @@ public class FileProcessorTests : IDisposable
         var p = MakePath("p2.log");
         File.WriteAllText(p, "2023-01-02T03:04:05Z INFO a\n");
 
-        var tailer = new FileTailer();
-        var fp = new FileProcessor(tailer);
+        var fp = new FileProcessor();
         var reg = new FileStateRegistry();
         var state = reg.GetOrCreate(p);
         lock (state.Gate)
@@ -86,7 +83,7 @@ public class FileProcessorTests : IDisposable
         var p = MakePath("p3.log");
         File.WriteAllText(p, "not-a-ts INFO a\n2023-01-02T03:04:05Z INFO b\n");
 
-        var fp = new FileProcessor(new FileTailer());
+        var fp = new FileProcessor();
         var reg = new FileStateRegistry();
         var state = reg.GetOrCreate(p);
         lock (state.Gate)
@@ -105,7 +102,7 @@ public class FileProcessorTests : IDisposable
         var p = MakePath("p4.log");
         File.WriteAllText(p, "2023-01-02T03:04:05Z INFO no_latency\n");
 
-        var fp = new FileProcessor(new FileTailer());
+        var fp = new FileProcessor();
         var reg = new FileStateRegistry();
         var state = reg.GetOrCreate(p);
         lock (state.Gate)
@@ -125,8 +122,7 @@ public class FileProcessorTests : IDisposable
         var longLine = "2023-01-02T03:04:05Z INFO " + new string('x', 200) + "\n";
         File.WriteAllText(p, longLine);
 
-        var tailer = new FileTailer();
-        var fp = new FileProcessor(tailer);
+        var fp = new FileProcessor();
         var reg = new FileStateRegistry();
         var state = reg.GetOrCreate(p);
         lock (state.Gate)

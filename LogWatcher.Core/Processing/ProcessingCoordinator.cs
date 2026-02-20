@@ -1,4 +1,4 @@
-﻿using LogWatcher.Core.Backpressure;
+using LogWatcher.Core.Backpressure;
 using LogWatcher.Core.Coordination;
 using LogWatcher.Core.FileManagement;
 using LogWatcher.Core.Ingestion;
@@ -19,8 +19,6 @@ namespace LogWatcher.Core.Processing
         private readonly int _dequeueTimeoutMs;
 
         private volatile bool _stopping;
-
-        private readonly bool _enableDiagnostics = false; // set true when debugging locally
 
         /// <summary>
         /// Creates a new <see cref="ProcessingCoordinator"/>.
@@ -58,7 +56,6 @@ namespace LogWatcher.Core.Processing
             _stopping = false;
             foreach (var t in _threads)
             {
-                if (_enableDiagnostics) Console.WriteLine($"Starting worker thread: {t.Name}");
                 t.Start();
             }
         }
@@ -87,13 +84,11 @@ namespace LogWatcher.Core.Processing
         private void WorkerLoop(int workerIndex)
         {
             var stats = _workerStats[workerIndex];
-            if (_enableDiagnostics) Console.WriteLine($"Worker {workerIndex} loop started");
             while (!_stopping)
             {
                 if (!_bus.TryDequeue(out var ev, _dequeueTimeoutMs))
                 {
                     // nothing dequeued; allow timely swap acknowledgements and continue loop
-                    if (_enableDiagnostics) Console.WriteLine($"Worker {workerIndex}: idle ack check");
                     stats.AcknowledgeSwapIfRequested();
                     continue;
                 }
@@ -121,7 +116,6 @@ namespace LogWatcher.Core.Processing
                 }
 
                 // Acknowledge swap after fully handling this event
-                if (_enableDiagnostics) Console.WriteLine($"Worker {workerIndex}: post-event ack check");
                 stats.AcknowledgeSwapIfRequested();
             }
         }

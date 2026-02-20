@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 
 namespace LogWatcher.Seeder
@@ -39,4 +39,3 @@ namespace LogWatcher.Seeder
         }
     }
 }
-

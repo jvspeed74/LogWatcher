@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 
 using LogWatcher.Core.Processing.Tailing;
 
@@ -36,7 +36,7 @@ public class FileTailerTests : IDisposable
         var p = MakePath("log1.txt");
         File.WriteAllText(p, "hello");
 
-        var tailer = new FileTailer();
+        IFileTailer tailer = new FileTailer();
         long offset = 0;
         var total = 0;
         var sb = new StringBuilder();
@@ -63,7 +63,7 @@ public class FileTailerTests : IDisposable
         var p = MakePath("log2.txt");
         File.WriteAllText(p, "12345678");
 
-        var tailer = new FileTailer();
+        IFileTailer tailer = new FileTailer();
         long offset = 0;
         tailer.ReadAppended(p, ref offset, _ => { }, out var total);
         Assert.Equal(8, offset);
@@ -83,7 +83,7 @@ public class FileTailerTests : IDisposable
         var p = MakePath("log3.txt");
         File.WriteAllText(p, "x");
 
-        var tailer = new FileTailer();
+        IFileTailer tailer = new FileTailer();
         long offset = 0;
         tailer.ReadAppended(p, ref offset, _ => { }, out var total);
 

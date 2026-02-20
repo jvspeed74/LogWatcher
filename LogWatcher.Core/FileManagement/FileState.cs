@@ -1,4 +1,4 @@
-﻿namespace LogWatcher.Core.FileManagement
+namespace LogWatcher.Core.FileManagement
 {
     /// <summary>
     /// Per-path mutable state used by the tailer and processor.
@@ -66,8 +66,7 @@
         public void ClearCarry()
         {
             // reset buffer and length
-            Carry.Buffer = null;
-            Carry.Length = 0;
+            Carry.Release();
         }
     }
 }

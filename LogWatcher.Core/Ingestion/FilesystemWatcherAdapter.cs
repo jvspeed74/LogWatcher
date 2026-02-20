@@ -1,4 +1,4 @@
-﻿using LogWatcher.Core.Backpressure;
+using LogWatcher.Core.Backpressure;
 
 namespace LogWatcher.Core.Ingestion
 {
@@ -22,8 +22,9 @@ namespace LogWatcher.Core.Ingestion
         public FilesystemWatcherAdapter(string path, BoundedEventBus<FsEvent> bus,
             Func<string, bool>? isProcessable = null)
         {
-            if (path == null) throw new ArgumentNullException(nameof(path));
-            _bus = bus ?? throw new ArgumentNullException(nameof(bus));
+            ArgumentNullException.ThrowIfNull(path);
+            ArgumentNullException.ThrowIfNull(bus);
+            _bus = bus;
             _isProcessable = isProcessable ?? DefaultIsProcessable;
 
             // TODO: Consider validating that the path exists and is a directory before creating the watcher
@@ -55,7 +56,7 @@ namespace LogWatcher.Core.Ingestion
         /// </summary>
         public void Start()
         {
-            if (_watcher == null) throw new ObjectDisposedException(nameof(FilesystemWatcherAdapter));
+            ObjectDisposedException.ThrowIf(_watcher == null, this);
             _watcher.EnableRaisingEvents = true;
         }
 

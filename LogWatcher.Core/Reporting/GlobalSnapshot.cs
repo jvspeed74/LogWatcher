@@ -1,4 +1,4 @@
-﻿using LogWatcher.Core.Processing.Parsing;
+using LogWatcher.Core.Processing.Parsing;
 using LogWatcher.Core.Statistics;
 
 namespace LogWatcher.Core.Reporting
@@ -10,61 +10,61 @@ namespace LogWatcher.Core.Reporting
     {
         // Scalars
         /// <summary>Count of created filesystem events.</summary>
-        public long FsCreated;
+        public long FsCreated { get; set; }
         /// <summary>Count of modified filesystem events.</summary>
-        public long FsModified;
+        public long FsModified { get; set; }
         /// <summary>Count of deleted filesystem events.</summary>
-        public long FsDeleted;
+        public long FsDeleted { get; set; }
         /// <summary>Count of renamed filesystem events.</summary>
-        public long FsRenamed;
+        public long FsRenamed { get; set; }
 
         /// <summary>Total number of processed lines.</summary>
-        public long LinesProcessed;
+        public long LinesProcessed { get; set; }
         /// <summary>Total number of malformed lines encountered during parsing.</summary>
-        public long MalformedLines;
+        public long MalformedLines { get; set; }
 
         /// <summary>Number of times processing coalesced due to busy gate.</summary>
-        public long CoalescedDueToBusyGate;
+        public long CoalescedDueToBusyGate { get; set; }
         /// <summary>Count of delete-pending markers set.</summary>
-        public long DeletePendingSetCount;
+        public long DeletePendingSetCount { get; set; }
         /// <summary>Count of files skipped due to delete-pending.</summary>
-        public long SkippedDueToDeletePending;
+        public long SkippedDueToDeletePending { get; set; }
         /// <summary>Count of file state removals finalized.</summary>
-        public long FileStateRemovedCount;
+        public long FileStateRemovedCount { get; set; }
 
         /// <summary>Count of file-not-found occurrences reported by tailer.</summary>
-        public long FileNotFoundCount;
+        public long FileNotFoundCount { get; set; }
         /// <summary>Count of access denied occurrences reported by tailer.</summary>
-        public long AccessDeniedCount;
+        public long AccessDeniedCount { get; set; }
         /// <summary>Count of I/O exceptions reported by tailer.</summary>
-        public long IoExceptionCount;
+        public long IoExceptionCount { get; set; }
         /// <summary>Count of truncation resets observed by tailer.</summary>
-        public long TruncationResetCount;
+        public long TruncationResetCount { get; set; }
 
         // Bus metrics (attached after merge)
         /// <summary>Total events published to the bus across workers.</summary>
-        public long BusPublished;
+        public long BusPublished { get; set; }
         /// <summary>Events dropped by the bus across workers.</summary>
-        public long BusDropped;
+        public long BusDropped { get; set; }
         /// <summary>Observed bus depth (approximate) after merge.</summary>
-        public int BusDepth;
+        public int BusDepth { get; set; }
 
         /// <summary>Per-level counts indexed by <see cref="LogLevel"/> value.</summary>
-        public long[] LevelCounts;
+        public long[] LevelCounts { get; set; }
         /// <summary>Accumulated message key counts.</summary>
-        public Dictionary<string, int> MessageCounts;
+        public Dictionary<string, int> MessageCounts { get; set; }
         /// <summary>Aggregated latency histogram.</summary>
-        public LatencyHistogram Histogram;
+        public LatencyHistogram Histogram { get; set; }
 
         // Derived outputs
         /// <summary>Top-K messages computed from aggregated message counts.</summary>
-        public List<(string Key, int Count)> TopKMessages;
+        public List<(string Key, int Count)> TopKMessages { get; set; }
         /// <summary>Computed P50 latency in milliseconds, or null if no samples.</summary>
-        public int? P50;
+        public int? P50 { get; set; }
         /// <summary>Computed P95 latency in milliseconds, or null if no samples.</summary>
-        public int? P95;
+        public int? P95 { get; set; }
         /// <summary>Computed P99 latency in milliseconds, or null if no samples.</summary>
-        public int? P99;
+        public int? P99 { get; set; }
 
         /// <summary>
         /// Creates a new snapshot and preallocates containers sized for the given top-K capacity.
@@ -72,7 +72,7 @@ namespace LogWatcher.Core.Reporting
         /// <param name="topK">Number of top messages to reserve space for.</param>
         public GlobalSnapshot(int topK)
         {
-            LevelCounts = new long[Enum.GetNames(typeof(LogLevel)).Length];
+            LevelCounts = new long[Enum.GetNames<LogLevel>().Length];
             MessageCounts = new Dictionary<string, int>(256);
             Histogram = new LatencyHistogram();
             TopKMessages = new List<(string, int)>(topK);
@@ -103,8 +103,8 @@ namespace LogWatcher.Core.Reporting
             BusDropped = 0;
             BusDepth = 0;
 
-            if (LevelCounts == null || LevelCounts.Length != Enum.GetNames(typeof(LogLevel)).Length)
-                LevelCounts = new long[Enum.GetNames(typeof(LogLevel)).Length];
+            if (LevelCounts == null || LevelCounts.Length != Enum.GetNames<LogLevel>().Length)
+                LevelCounts = new long[Enum.GetNames<LogLevel>().Length];
             else
                 Array.Clear(LevelCounts, 0, LevelCounts.Length);
 
@@ -122,7 +122,7 @@ namespace LogWatcher.Core.Reporting
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="buf"/> is null.</exception>
         public void MergeFrom(WorkerStatsBuffer buf)
         {
-            if (buf == null) throw new ArgumentNullException(nameof(buf));
+            ArgumentNullException.ThrowIfNull(buf);
 
             FsCreated += buf.FsCreated;
             FsModified += buf.FsModified;

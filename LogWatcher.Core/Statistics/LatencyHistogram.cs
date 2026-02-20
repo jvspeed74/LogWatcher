@@ -1,4 +1,4 @@
-﻿namespace LogWatcher.Core.Statistics
+namespace LogWatcher.Core.Statistics
 {
     /// <summary>
     /// Bounded, mergeable histogram for latencies in milliseconds.
@@ -59,7 +59,7 @@
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="other"/> is null.</exception>
         public void MergeFrom(LatencyHistogram other)
         {
-            if (other == null) throw new ArgumentNullException(nameof(other));
+            ArgumentNullException.ThrowIfNull(other);
 
             // FIXME: Potential integer overflow when merging bins with very high counts
             // Consider using checked arithmetic or long[] for bins

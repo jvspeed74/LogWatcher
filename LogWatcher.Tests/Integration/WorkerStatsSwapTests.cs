@@ -1,4 +1,4 @@
-﻿using LogWatcher.Core.Coordination;
+using LogWatcher.Core.Coordination;
 
 namespace LogWatcher.Tests.Integration;
 

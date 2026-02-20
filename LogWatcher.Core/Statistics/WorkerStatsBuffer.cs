@@ -1,4 +1,4 @@
-﻿using LogWatcher.Core.Ingestion;
+using LogWatcher.Core.Ingestion;
 using LogWatcher.Core.Processing.Parsing;
 
 namespace LogWatcher.Core.Statistics
@@ -7,53 +7,53 @@ namespace LogWatcher.Core.Statistics
     /// Per-worker stats buffer for a single reporting interval. Contains counters, message counts and a latency histogram.
     /// Callers should treat instances as single-threaded containers (workers write to active buffer; reporter reads inactive buffer after swap).
     /// </summary>
-    public sealed class WorkerStatsBuffer
+    public sealed class WorkerStatsBuffer  // TODO investigate if interface for different metric types is ideal?
     {
         // Fs event counters
         /// <summary>Count of created events.</summary>
-        public long FsCreated;
+        public long FsCreated { get; set; }
         /// <summary>Count of modified events.</summary>
-        public long FsModified;
+        public long FsModified { get; set; }
         /// <summary>Count of deleted events.</summary>
-        public long FsDeleted;
+        public long FsDeleted { get; set; }
         /// <summary>Count of renamed events.</summary>
-        public long FsRenamed;
+        public long FsRenamed { get; set; }
 
         // Other scalar counters
         /// <summary>Number of processed lines.</summary>
-        public long LinesProcessed;
+        public long LinesProcessed { get; set; }
         /// <summary>Number of malformed lines encountered.</summary>
-        public long MalformedLines;
+        public long MalformedLines { get; set; }
         /// <summary>Number of coalesces due to busy gate.</summary>
-        public long CoalescedDueToBusyGate;
+        public long CoalescedDueToBusyGate { get; set; }
         /// <summary>Number of delete-pending markers set.</summary>
-        public long DeletePendingSetCount;
+        public long DeletePendingSetCount { get; set; }
         /// <summary>Number of files skipped due to delete pending.</summary>
-        public long SkippedDueToDeletePending;
+        public long SkippedDueToDeletePending { get; set; }
         /// <summary>Number of file states removed.</summary>
-        public long FileStateRemovedCount;
+        public long FileStateRemovedCount { get; set; }
 
         // IO counters
         /// <summary>Count of file-not-found occurrences.</summary>
-        public long FileNotFoundCount;
+        public long FileNotFoundCount { get; set; }
         /// <summary>Count of access-denied occurrences.</summary>
-        public long AccessDeniedCount;
+        public long AccessDeniedCount { get; set; }
         /// <summary>Count of I/O exceptions.</summary>
-        public long IoExceptionCount;
+        public long IoExceptionCount { get; set; }
         /// <summary>Count of truncation resets.</summary>
-        public long TruncationResetCount;
+        public long TruncationResetCount { get; set; }
 
         // Level counts sized to LogLevel enum
         /// <summary>Per-level counters indexed by <see cref="LogLevel"/>.</summary>
-        public long[] LevelCounts;
+        public long[] LevelCounts { get; set; }
 
         // Message counts (string keys)
         /// <summary>Counts for individual message keys.</summary>
-        public Dictionary<string, int> MessageCounts;
+        public Dictionary<string, int> MessageCounts { get; set; }
 
         // Latency histogram
         /// <summary>Latency histogram for the interval.</summary>
-        public LatencyHistogram Histogram;
+        public LatencyHistogram Histogram { get; set; }
 
         private const int DefaultMessageCapacity = 256;
 
@@ -64,7 +64,7 @@ namespace LogWatcher.Core.Statistics
         public WorkerStatsBuffer(int messageInitialCapacity = DefaultMessageCapacity)
         {
             // Initialize fields
-            LevelCounts = new long[Enum.GetNames(typeof(LogLevel)).Length];
+            LevelCounts = new long[Enum.GetNames<LogLevel>().Length];
             MessageCounts = new Dictionary<string, int>(messageInitialCapacity);
             Histogram = new LatencyHistogram();
         }
@@ -126,7 +126,7 @@ namespace LogWatcher.Core.Statistics
         /// <exception cref="ArgumentNullException">When <paramref name="key"/> is null.</exception>
         public void IncrementMessage(string key)
         {
-            if (key == null) throw new ArgumentNullException(nameof(key));
+            ArgumentNullException.ThrowIfNull(key);
             if (MessageCounts.TryGetValue(key, out var v)) MessageCounts[key] = v + 1;
             else MessageCounts[key] = 1;
         }

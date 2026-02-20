@@ -1,4 +1,4 @@
-﻿namespace LogWatcher.Core.Ingestion
+namespace LogWatcher.Core.Ingestion
 {
     /// <summary>
     /// Represents a filesystem event observed by the watcher.

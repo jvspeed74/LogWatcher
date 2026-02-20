@@ -1,4 +1,4 @@
-﻿namespace LogWatcher.Core.Processing.Parsing;
+namespace LogWatcher.Core.Processing.Parsing;
 
 /// <summary>
 /// Represents the severity level of a parsed log line.

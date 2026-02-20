@@ -1,4 +1,4 @@
-﻿using LogWatcher.Core.Statistics;
+using LogWatcher.Core.Statistics;
 
 namespace LogWatcher.Core.Coordination
 {
@@ -6,7 +6,7 @@ namespace LogWatcher.Core.Coordination
     /// Per-worker double-buffered statistics container.
     /// Supports a swap/ack protocol used by the reporter to safely collect per-worker metrics.
     /// </summary>
-    public sealed class WorkerStats
+    public sealed class WorkerStats : IDisposable
     {
         private readonly WorkerStatsBuffer _a;
         private readonly WorkerStatsBuffer _b;
@@ -14,7 +14,7 @@ namespace LogWatcher.Core.Coordination
         private WorkerStatsBuffer _active;
         private WorkerStatsBuffer _inactive;
 
-        private int _swapRequested;
+        private int _swapRequested;  // todo investigate if this can be a bool or bit field;
         private readonly ManualResetEventSlim _swapAck;
 
         /// <summary>
@@ -86,6 +86,14 @@ namespace LogWatcher.Core.Coordination
         public WorkerStatsBuffer GetInactiveBufferForMerge()
         {
             return _inactive;
+        }
+
+        /// <summary>
+        /// Disposes the swap acknowledgment event.
+        /// </summary>
+        public void Dispose()
+        {
+            _swapAck.Dispose();
         }
     }
 }
