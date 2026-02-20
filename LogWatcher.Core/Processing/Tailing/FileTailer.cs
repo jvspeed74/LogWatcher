@@ -2,14 +2,33 @@ using System.Buffers;
 
 namespace LogWatcher.Core.Processing.Tailing
 {
+    // TODO: FileTailer exposes only static members, making it impossible to substitute or mock in unit tests.
+    // Callers (e.g. FileProcessor) are forced to use real file I/O even when testing higher-level logic.
+    // Consider introducing an IFileTailer interface and an instance-based implementation so the I/O layer
+    // can be replaced with a test double without hitting the filesystem.
+
     /// <summary>
     /// Utility to read bytes that have been appended to a file since a given offset.
     /// </summary>
     public sealed class FileTailer
     {
         // TODO: Consider making chunk size configurable per file type or based on available memory
+        // FIXME: DefaultChunkSize is defined here as a private constant, but the same literal (64 * 1024) is
+        // independently duplicated as the default argument in IFileProcessor.ProcessOnce and FileProcessor.ProcessOnce.
+        // There is no single source of truth for this value; changing it in one place silently diverges from the others.
         private const int DefaultChunkSize = 64 * 1024;
 
+        // TODO: The method signature uses both a `ref` parameter (offset) and an `out` parameter (totalBytesRead),
+        // which produces a complex call site that is easy to misuse. Grouping these into a dedicated result record
+        // or struct would make the contract clearer and harder to call incorrectly.
+        //
+        // TODO: There is no CancellationToken parameter. Long synchronous reads inside the while-loop below
+        // cannot be interrupted by the caller. Consider adding a CancellationToken overload to support cooperative
+        // cancellation in high-throughput or shutdown scenarios.
+        //
+        // TODO: The onChunk delegate creates an inverted (push-based) control flow. Callers cannot use natural
+        // foreach-style iteration, compose with LINQ, or implement backpressure easily. A pull-based API (e.g.,
+        // returning an IEnumerable<ReadOnlyMemory<byte>>) or an async streaming overload would be more composable.
         /// <summary>
         /// Reads bytes appended to <paramref name="path"/> since <paramref name="offset"/> and invokes <paramref name="onChunk"/> for each chunk read.
         /// The provided <see cref="ReadOnlySpan{Byte}"/> passed to <paramref name="onChunk"/> is only valid for the duration of the callback and must not be stored.
@@ -63,6 +82,10 @@ namespace LogWatcher.Core.Processing.Tailing
                     truncated = true;
                 }
 
+                // TODO: The two guard conditions below (`effectiveOffset > length` and `effectiveOffset == length`)
+                // could be unified into a single `effectiveOffset >= length` check. Their separate presence implies
+                // distinct semantics, but both branches return the same status values, creating unnecessary duplication
+                // and potential confusion for future maintainers.
                 if (effectiveOffset > length)
                 {
                     // no data
@@ -81,6 +104,8 @@ namespace LogWatcher.Core.Processing.Tailing
                 fs.Seek(effectiveOffset, SeekOrigin.Begin);
 
                 // TODO: Consider using FileStream.ReadAsync for better async I/O performance in high-throughput scenarios
+                // FIXME: The read loop has no cancellation path. If the file grows unboundedly between the `fs.Length`
+                // check and this loop, the method will continue reading until it catches up with no way to stop early.
                 buffer = ArrayPool<byte>.Shared.Rent(chunkSize);
 
                 int read;
@@ -97,12 +122,20 @@ namespace LogWatcher.Core.Processing.Tailing
                     return truncated ? TailReadStatus.TruncatedReset : TailReadStatus.ReadSome;
                 }
 
+                // FIXME: The comment below ("shouldn't reach here") is inaccurate. This path can be reached if
+                // `fs.Read` returns 0 without EOF, for example during a concurrent truncation that occurs between
+                // the `fs.Length` snapshot and the actual read. The comment gives a false guarantee and may cause
+                // future maintainers to overlook a real edge case.
                 // If we didn't read (shouldn't reach here because effectiveOffset==length handled), handle fallthrough
                 if (truncated) return TailReadStatus.TruncatedReset;
                 return TailReadStatus.NoData;
             }
             catch (FileNotFoundException)
             {
+                // TODO: The `totalBytesRead = 0` reset in each catch block is redundant because totalBytesRead is
+                // already initialized to 0 at the start of the method and is only incremented inside the try block,
+                // which is not entered if an exception is thrown before that point. Consider removing the resets to
+                // reduce noise, or encapsulate error-return logic in a shared helper to eliminate the repetition.
                 totalBytesRead = 0;
                 return TailReadStatus.FileNotFound;
             }
