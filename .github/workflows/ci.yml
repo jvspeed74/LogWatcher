@@ -5,6 +5,10 @@ on:
     branches:
       - main
       - feature/*
+    paths-ignore:
+      - '**/*.md'
+      - 'compose.yaml'
+      - '**/docs/**'
   pull_request:
     branches:
       - main
