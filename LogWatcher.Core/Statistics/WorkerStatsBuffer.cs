@@ -7,7 +7,7 @@ namespace LogWatcher.Core.Statistics
     /// Per-worker stats buffer for a single reporting interval. Contains counters, message counts and a latency histogram.
     /// Callers should treat instances as single-threaded containers (workers write to active buffer; reporter reads inactive buffer after swap).
     /// </summary>
-    public sealed class WorkerStatsBuffer
+    public sealed class WorkerStatsBuffer  // TODO investigate if interface for different metric types is ideal?
     {
         // Fs event counters
         /// <summary>Count of created events.</summary>
