@@ -83,5 +83,5 @@ jobs:
 
       - name: Build and run services with docker-compose
         run: |
-          docker-compose up --build --abort-on-container-exit
+          docker compose up --build --abort-on-container-exit
         timeout-minutes: 5
