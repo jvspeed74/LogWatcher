@@ -58,8 +58,8 @@ graph TB
         FEV["FsEvent<br/>Created|Modified|Deleted|Renamed"]
     end
 
-    subgraph Events["Events"]
-        BEB["BoundedEventBus&lt;FsEvent&gt;"]
+    subgraph Backpressure["Backpressure"]
+        BEB["BoundedEventBus&lt;T&gt;"]
     end
 
     subgraph FileManagement["FileManagement"]
@@ -142,7 +142,7 @@ graph TB
     REP -->|Output| STDOUT["Console Output"]
 
     style Ingestion fill:#e1f5ff
-    style Events fill:#f3e5f5
+    style Backpressure fill:#f3e5f5
     style FileManagement fill:#fce4ec
     style Processing fill:#fff3e0
     style Tailing fill:#fff8e1
