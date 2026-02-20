@@ -31,7 +31,8 @@ public class FileTailerTests : IDisposable
     }
 
     [Fact]
-    public void ReadAppended_ReadsOnlyNewBytes()
+    [Invariant("TAIL-001")]
+    public void ReadAppended_WithAppendedContent_ReadsOnlyNewBytes()
     {
         var p = MakePath("log1.txt");
         File.WriteAllText(p, "hello");
@@ -58,7 +59,9 @@ public class FileTailerTests : IDisposable
     }
 
     [Fact]
-    public void ReadAppended_TruncationResetsOffset()
+    [Invariant("TAIL-001")]
+    [Invariant("TAIL-002")]
+    public void ReadAppended_WhenFileTruncated_ResetsOffsetAndReadsFromStart()
     {
         var p = MakePath("log2.txt");
         File.WriteAllText(p, "12345678");
@@ -78,7 +81,8 @@ public class FileTailerTests : IDisposable
     }
 
     [Fact]
-    public void ReadAppended_FileDeleted_ReturnsFileNotFoundOrNoData()
+    [Invariant("TAIL-004")]
+    public void ReadAppended_WhenFileDeleted_ReturnsFileNotFound()
     {
         var p = MakePath("log3.txt");
         File.WriteAllText(p, "x");

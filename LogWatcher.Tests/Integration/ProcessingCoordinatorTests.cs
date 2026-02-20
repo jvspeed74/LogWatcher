@@ -41,7 +41,9 @@ internal class FakeProcessor : IFileProcessor
 public class ProcessingCoordinatorTests
 {
     [Fact]
-    public void ModifyInFlightThenDelete_LeadsToDeletePendingAndFinalize()
+    [Invariant("PROC-004")]
+    [Invariant("FM-002")]
+    public void ModifyThenDelete_WhileWorkerBusy_FinalizesDelete()
     {
         var bus = new BoundedEventBus<FsEvent>(100);
         var registry = new FileStateRegistry();
@@ -71,7 +73,9 @@ public class ProcessingCoordinatorTests
     }
 
     [Fact]
-    public void ManyModifiesWhileBusy_CoalesceAndCatchup()
+    [Invariant("PROC-002")]
+    [Invariant("PROC-003")]
+    public void ManyModifies_WhileWorkerBusy_CoalesceAndProcess()
     {
         var bus = new BoundedEventBus<FsEvent>(1000);
         var registry = new FileStateRegistry();
@@ -94,7 +98,8 @@ public class ProcessingCoordinatorTests
     }
 
     [Fact]
-    public void ConcurrentWorkers_DoNotProcessSamePathSimultaneously()
+    [Invariant("PROC-001")]
+    public void ConcurrentWorkers_SamePath_NeverProcessSimultaneously()
     {
         var bus = new BoundedEventBus<FsEvent>(1000);
         var registry = new FileStateRegistry();

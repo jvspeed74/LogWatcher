@@ -4,15 +4,17 @@ namespace LogWatcher.Tests.Unit.Core.Statistics;
 
 public class TopKTests
 {
+    // TODO: map to invariant
     [Fact]
-    public void Empty_ReturnsEmpty()
+    public void ComputeTopK_WhenDictionaryEmpty_ReturnsEmpty()
     {
         var res = TopK.ComputeTopK(new Dictionary<string, int>(), 10);
         Assert.Empty(res);
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void KGreaterThanCount_ReturnsAllSorted()
+    public void ComputeTopK_WhenKExceedsCount_ReturnsAllItemsSorted()
     {
         var d = new Dictionary<string, int>
         {
@@ -28,8 +30,9 @@ public class TopKTests
         Assert.Equal(("c", 1), res[2]);
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void TieBreak_IsOrdinalAscending()
+    public void ComputeTopK_WithEqualCounts_BreaksTiesByOrdinalAscending()
     {
         var d = new Dictionary<string, int>
         {
@@ -45,8 +48,9 @@ public class TopKTests
         Assert.Equal("b", res[2].Key);
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void OrdersByCountDescending()
+    public void ComputeTopK_WithMixedCounts_ReturnsTopKByCountDescending()
     {
         var d = new Dictionary<string, int>
         {

@@ -4,8 +4,9 @@ namespace LogWatcher.Tests.Unit.Core.Statistics;
 
 public class LatencyHistogramTests
 {
+    // TODO: map to invariant
     [Fact]
-    public void EmptyHistogram_PercentilesAreNull()
+    public void Percentile_WhenHistogramEmpty_ReturnsNull()
     {
         var h = new LatencyHistogram();
         Assert.Null(h.Percentile(0.5));
@@ -14,7 +15,8 @@ public class LatencyHistogramTests
     }
 
     [Fact]
-    public void SingleValue_AllPercentilesSame()
+    [Invariant("STAT-003")]
+    public void Percentile_WithSingleValue_ReturnsSameForAllPercentiles()
     {
         var h = new LatencyHistogram();
         h.Add(123);
@@ -25,7 +27,8 @@ public class LatencyHistogramTests
     }
 
     [Fact]
-    public void LinearDistribution_PercentilesMatchExpectedBin()
+    [Invariant("STAT-003")]
+    public void Percentile_WithLinearDistribution_ReturnsCorrectBin()
     {
         var h = new LatencyHistogram();
         // add values 1,2,3,4
@@ -40,7 +43,8 @@ public class LatencyHistogramTests
     }
 
     [Fact]
-    public void OverflowValues_GoToOverflowBin()
+    [Invariant("STAT-005")]
+    public void Add_WhenValueExceedsRange_MapsToOverflowBin()
     {
         var h = new LatencyHistogram();
         h.Add(10001);
@@ -49,7 +53,8 @@ public class LatencyHistogramTests
     }
 
     [Fact]
-    public void Merge_SumsCountsCorrectly()
+    [Invariant("STAT-003")]
+    public void MergeFrom_WithAnotherHistogram_SumsBinCounts()
     {
         var a = new LatencyHistogram();
         a.Add(1);

@@ -13,7 +13,9 @@ public class Utf8LineScannerTests
     }
 
     [Fact]
-    public void LF_only_single_chunk()
+    [Invariant("SCAN-001")]
+    [Invariant("SCAN-002")]
+    public void Scan_WithLfTerminatedLines_EmitsLinesWithoutDelimiter()
     {
         var carry = default(PartialLineBuffer);
         var emitted = new List<string>();
@@ -26,7 +28,10 @@ public class Utf8LineScannerTests
     }
 
     [Fact]
-    public void CRLF_single_chunk()
+    [Invariant("SCAN-001")]
+    [Invariant("SCAN-002")]
+    [Invariant("SCAN-003")]
+    public void Scan_WithCrlfTerminatedLines_EmitsLinesWithoutDelimiters()
     {
         var carry = default(PartialLineBuffer);
         var emitted = new List<string>();
@@ -39,7 +44,10 @@ public class Utf8LineScannerTests
     }
 
     [Fact]
-    public void CRLF_split_across_chunks()
+    [Invariant("SCAN-001")]
+    [Invariant("SCAN-003")]
+    [Invariant("SCAN-004")]
+    public void Scan_WithCrlfSplitAcrossChunks_EmitsCompleteLines()
     {
         var carry = default(PartialLineBuffer);
         var emitted = new List<string>();
@@ -55,7 +63,9 @@ public class Utf8LineScannerTests
     }
 
     [Fact]
-    public void Line_split_across_chunks_no_newline_until_later()
+    [Invariant("SCAN-001")]
+    [Invariant("SCAN-004")]
+    public void Scan_WithLineSplitAcrossChunks_PreservesCarryAndEmitsWhenComplete()
     {
         var carry = default(PartialLineBuffer);
         var emitted = new List<string>();
@@ -70,7 +80,8 @@ public class Utf8LineScannerTests
     }
 
     [Fact]
-    public void Multiple_lines_in_one_chunk()
+    [Invariant("SCAN-001")]
+    public void Scan_WithMultipleLinesInSingleChunk_EmitsAllLines()
     {
         var carry = default(PartialLineBuffer);
         var emitted = new List<string>();
@@ -81,7 +92,9 @@ public class Utf8LineScannerTests
     }
 
     [Fact]
-    public void Empty_lines_between_newlines()
+    [Invariant("SCAN-001")]
+    [Invariant("SCAN-002")]
+    public void Scan_WithConsecutiveNewlines_EmitsEmptyLines()
     {
         var carry = default(PartialLineBuffer);
         var emitted = new List<string>();
@@ -93,7 +106,9 @@ public class Utf8LineScannerTests
     }
 
     [Fact]
-    public void Carryover_preserved_when_no_newline()
+    [Invariant("SCAN-001")]
+    [Invariant("SCAN-004")]
+    public void Scan_WithPartialLineNoNewline_PreservesInCarry()
     {
         var carry = default(PartialLineBuffer);
         var emitted = new List<string>();

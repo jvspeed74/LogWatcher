@@ -10,7 +10,9 @@ namespace LogWatcher.Tests.Integration;
 public class ReporterTests
 {
     [Fact]
-    public void BuildSnapshotAndFrame_MergesWorkerBuffersAndAttachesBusMetrics()
+    [Invariant("RPT-002")]
+    [Invariant("CD-001")]
+    public void BuildSnapshotAndFrame_WithPopulatedWorkerBuffers_MergesAllMetrics()
     {
         // Arrange
         var bus = new BoundedEventBus<FsEvent>(10);
@@ -58,8 +60,9 @@ public class ReporterTests
         Assert.Equal(0, snap.BusDropped);
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void BuildSnapshotAndFrame_ComputesTopKAndPercentiles()
+    public void BuildSnapshotAndFrame_WithMessagesAndLatencies_ComputesTopKAndPercentiles()
     {
         var bus = new BoundedEventBus<FsEvent>(10);
         var workers = new WorkerStats[1];

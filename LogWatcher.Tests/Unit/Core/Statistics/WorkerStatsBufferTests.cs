@@ -5,7 +5,8 @@ namespace LogWatcher.Tests.Unit.Core.Statistics;
 public class WorkerStatsBufferTests
 {
     [Fact]
-    public void Reset_ClearsScalarsArraysAndCollections()
+    [Invariant("STAT-004")]
+    public void Reset_WhenCalled_ClearsAllFieldsToZero()
     {
         var b = new WorkerStatsBuffer();
         b.FsCreated = 1;
@@ -25,8 +26,9 @@ public class WorkerStatsBufferTests
         Assert.Null(b.Histogram.Percentile(0.5));
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void MessageCounts_AccumulatesCorrectly()
+    public void IncrementMessage_CalledMultipleTimes_AccumulatesCountsCorrectly()
     {
         var b = new WorkerStatsBuffer();
         b.IncrementMessage("a");
@@ -38,7 +40,9 @@ public class WorkerStatsBufferTests
     }
 
     [Fact]
-    public void Histogram_AccumulatesAndResets()
+    [Invariant("STAT-002")]
+    [Invariant("STAT-004")]
+    public void Histogram_RecordThenReset_AccumulatesAndClears()
     {
         var b = new WorkerStatsBuffer();
         b.RecordLatency(10);

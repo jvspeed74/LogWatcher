@@ -23,8 +23,9 @@ public class CommandConfigurationTests : IDisposable
         }
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void Parse_DefaultsAndPositional_Works()
+    public void Parse_WithDirectoryArgument_Succeeds()
     {
         var args = new[] { _tmpDir };
         var command = CommandConfiguration.CreateRootCommand();
@@ -34,8 +35,9 @@ public class CommandConfigurationTests : IDisposable
         Assert.Empty(parseResult.Errors);
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void Parse_AllOptions_Works()
+    public void Parse_WithAllOptions_Succeeds()
     {
         var args = new[] { _tmpDir, "--workers", "3", "-q", "500", "-r", "5", "-k", "7" };
         var command = CommandConfiguration.CreateRootCommand();
@@ -45,8 +47,9 @@ public class CommandConfigurationTests : IDisposable
         Assert.Empty(parseResult.Errors);
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void Parse_MissingPath_Fails()
+    public void Parse_WithMissingPath_ReturnsErrors()
     {
         var args = Array.Empty<string>();
         var command = CommandConfiguration.CreateRootCommand();
@@ -56,8 +59,9 @@ public class CommandConfigurationTests : IDisposable
         Assert.NotEmpty(parseResult.Errors);
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void Parse_InvalidNumber_Fails()
+    public void Parse_WithInvalidNumber_ReturnsErrors()
     {
         var args = new[] { _tmpDir, "--workers", "notanumber" };
         var command = CommandConfiguration.CreateRootCommand();
@@ -67,8 +71,9 @@ public class CommandConfigurationTests : IDisposable
         Assert.NotEmpty(parseResult.Errors);
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void Parse_HelpRequested_ShowsHelp()
+    public void Parse_WhenHelpRequested_ReturnsNoErrors()
     {
         var args = new[] { "--help" };
         var command = CommandConfiguration.CreateRootCommand();

@@ -7,7 +7,11 @@ namespace LogWatcher.Tests.Unit.Core.Backpressure;
 public class BoundedEventBusTests
 {
     [Fact]
-    public void Publish_DropsWhenFull()
+    [Invariant("BP-001")]
+    [Invariant("BP-002")]
+    [Invariant("BP-003")]
+    [Invariant("BP-004")]
+    public void Publish_WhenBusFull_DropsEvent()
     {
         var bus = new BoundedEventBus<int>(2);
         Assert.True(bus.Publish(1));
@@ -19,8 +23,9 @@ public class BoundedEventBusTests
         Assert.Equal(2, bus.Depth);
     }
 
+    // TODO: map to invariant
     [Fact]
-    public void TryDequeue_ReturnsItemsInFifoOrder()
+    public void TryDequeue_WithMultiplePublishedItems_ReturnsInFifoOrder()
     {
         var bus = new BoundedEventBus<int>(10);
         bus.Publish(10);
@@ -33,7 +38,8 @@ public class BoundedEventBusTests
     }
 
     [Fact]
-    public async Task Stop_UnblocksDequeueAndReturnsFalseWhenEmpty()
+    [Invariant("BP-005")]
+    public async Task Stop_WhenCalled_UnblocksConsumerAndReturnsFalse()
     {
         var bus = new BoundedEventBus<int>(2);
 
@@ -46,7 +52,8 @@ public class BoundedEventBusTests
     }
 
     [Fact]
-    public async Task MultiProducer_DoesNotCorruptQueue()
+    [Invariant("BP-004")]
+    public async Task MultipleProducers_ConcurrentPublish_AllItemsEnqueued()
     {
         var bus = new BoundedEventBus<int>(10000);
         var producers = 4;
@@ -74,7 +81,8 @@ public class BoundedEventBusTests
     }
 
     [Fact]
-    public async Task MultiConsumer_ConsumesAllPublishedItems()
+    [Invariant("BP-004")]
+    public async Task MultipleConsumers_ConcurrentDequeue_ConsumesAllItems()
     {
         var bus = new BoundedEventBus<int>(10000);
         var items = 10000;

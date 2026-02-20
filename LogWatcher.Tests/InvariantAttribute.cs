@@ -1,4 +1,4 @@
-﻿namespace LogWatcher.Tests;
+namespace LogWatcher.Tests;
 
 /// <summary>
 /// Marks a test method or class as protecting a specific invariant.

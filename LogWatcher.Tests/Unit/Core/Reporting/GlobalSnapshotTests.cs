@@ -6,7 +6,8 @@ namespace LogWatcher.Tests.Unit.Core.Reporting;
 public class GlobalSnapshotTests
 {
     [Fact]
-    public void MergeFrom_SumsScalarsAndMessagesAndHistogram()
+    [Invariant("RPT-002")]
+    public void MergeFrom_WithWorkerBuffer_SumsAllMetrics()
     {
         var snap = new GlobalSnapshot(3);
         var buf = new WorkerStatsBuffer();
@@ -28,7 +29,8 @@ public class GlobalSnapshotTests
     }
 
     [Fact]
-    public void FinalizeSnapshot_ComputesTopK_AndPercentiles()
+    [Invariant("STAT-003")]
+    public void FinalizeSnapshot_WithMessagesAndLatencies_ComputesTopKAndPercentiles()
     {
         var snap = new GlobalSnapshot(2);
         snap.MessageCounts["x"] = 5;

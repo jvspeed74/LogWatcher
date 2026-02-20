@@ -25,7 +25,9 @@ public class FilesystemWatcherAdapterTests : IDisposable
     }
 
     [Fact]
-    public void CreatedLogFile_PublishesEventToBus()
+    [Invariant("ING-001")]
+    [Invariant("ING-003")]
+    public void Start_WhenLogFileCreated_PublishesEventToBus()
     {
         var bus = new BoundedEventBus<FsEvent>(1000);
         using var adapter = new FilesystemWatcherAdapter(_dir, bus);

@@ -5,7 +5,10 @@ namespace LogWatcher.Tests.Integration;
 public class WorkerStatsSwapTests
 {
     [Fact]
-    public void Swap_MovesWrittenDataToInactiveAndResetsActive()
+    [Invariant("CD-001")]
+    [Invariant("CD-002")]
+    [Invariant("CD-003")]
+    public void Swap_AfterRequestAndAck_MovesDataToInactiveAndResetsActive()
     {
         var ws = new WorkerStats();
 
@@ -39,7 +42,8 @@ public class WorkerStatsSwapTests
     }
 
     [Fact]
-    public void NoSwapRequest_DoesNothing()
+    [Invariant("CD-004")]
+    public void AcknowledgeSwapIfRequested_WhenNoRequestPending_DoesNothing()
     {
         var ws = new WorkerStats();
         ws.Active.LinesProcessed = 1;
@@ -49,7 +53,9 @@ public class WorkerStatsSwapTests
     }
 
     [Fact]
-    public void RequestSwap_ThenAck_SetsAckEvent()
+    [Invariant("CD-003")]
+    [Invariant("CD-004")]
+    public void RequestSwap_WhenAcknowledged_SetsAckEvent()
     {
         var ws = new WorkerStats();
         ws.RequestSwap();
@@ -60,7 +66,10 @@ public class WorkerStatsSwapTests
     }
 
     [Fact]
-    public void MultipleSequentialSwaps_WorkCorrectly()
+    [Invariant("CD-001")]
+    [Invariant("CD-002")]
+    [Invariant("CD-003")]
+    public void MultipleSwaps_AcrossSequentialIntervals_EachIntervalHasCorrectData()
     {
         var ws = new WorkerStats();
 
