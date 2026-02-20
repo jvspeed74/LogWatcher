@@ -1,8 +1,8 @@
 ﻿using System.Collections.Concurrent;
 
-using LogWatcher.Core.Events;
+using LogWatcher.Core.Backpressure;
 
-namespace LogWatcher.Tests.Unit.Core.Events;
+namespace LogWatcher.Tests.Unit.Core.Backpressure;
 
 public class BoundedEventBusTests
 {
