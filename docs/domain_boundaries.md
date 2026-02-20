@@ -10,7 +10,7 @@ code belongs.
 | #  | Domain                  | Namespace                             | Responsibility                         |
 |----|-------------------------|---------------------------------------|----------------------------------------|
 | 1  | Ingestion               | `LogWatcher.Core.Ingestion`           | OS events → FsEvent                    |
-| 2  | Event Distribution      | `LogWatcher.Core.Events`              | Bounded async queue                    |
+| 2  | Event Distribution      | `LogWatcher.Core.Backpressure`        | Bounded async queue                    |
 | 3  | File State Management   | `LogWatcher.Core.FileManagement`      | Per-file state, offset, lock           |
 | 4  | File Tailing            | `LogWatcher.Core.Processing.Tailing`  | Incremental file reads                 |
 | 5  | Line Scanning           | `LogWatcher.Core.Processing.Scanning` | Chunked bytes → lines                  |
@@ -56,7 +56,7 @@ notifications).
 
 ### **Domain 2: Event Distribution**
 
-**Namespace:** `LogWatcher.Core.Events`
+**Namespace:** `LogWatcher.Core.Backpressure`
 
 **Responsibility:** Thread-safe bounded queue with producer/consumer coordination.
 

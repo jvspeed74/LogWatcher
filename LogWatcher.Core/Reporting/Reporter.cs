@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 
+using LogWatcher.Core.Backpressure;
 using LogWatcher.Core.Coordination;
-using LogWatcher.Core.Events;
 using LogWatcher.Core.Ingestion;
 
 namespace LogWatcher.Core.Reporting
