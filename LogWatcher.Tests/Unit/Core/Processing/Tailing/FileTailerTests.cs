@@ -36,11 +36,12 @@ public class FileTailerTests : IDisposable
         var p = MakePath("log1.txt");
         File.WriteAllText(p, "hello");
 
+        IFileTailer tailer = new FileTailer();
         long offset = 0;
         var total = 0;
         var sb = new StringBuilder();
 
-        var status = FileTailer.ReadAppended(p, ref offset, s => sb.Append(Encoding.UTF8.GetString(s)), out total);
+        var status = tailer.ReadAppended(p, ref offset, s => sb.Append(Encoding.UTF8.GetString(s)), out total);
         Assert.Equal(TailReadStatus.ReadSome, status);
         Assert.Equal(5, total);
         Assert.Equal("hello", sb.ToString());
@@ -49,7 +50,7 @@ public class FileTailerTests : IDisposable
         // append more
         File.AppendAllText(p, " world");
         sb.Clear();
-        status = FileTailer.ReadAppended(p, ref offset, s => sb.Append(Encoding.UTF8.GetString(s)), out total);
+        status = tailer.ReadAppended(p, ref offset, s => sb.Append(Encoding.UTF8.GetString(s)), out total);
         Assert.Equal(TailReadStatus.ReadSome, status);
         Assert.Equal(6, total);
         Assert.Equal(" world", sb.ToString());
@@ -62,14 +63,15 @@ public class FileTailerTests : IDisposable
         var p = MakePath("log2.txt");
         File.WriteAllText(p, "12345678");
 
+        IFileTailer tailer = new FileTailer();
         long offset = 0;
-        FileTailer.ReadAppended(p, ref offset, _ => { }, out var total);
+        tailer.ReadAppended(p, ref offset, _ => { }, out var total);
         Assert.Equal(8, offset);
 
         // truncate file to smaller content
         File.WriteAllText(p, "abc");
 
-        var status = FileTailer.ReadAppended(p, ref offset, s => { }, out var tot2);
+        var status = tailer.ReadAppended(p, ref offset, s => { }, out var tot2);
         Assert.True(status == TailReadStatus.TruncatedReset || status == TailReadStatus.ReadSome);
         // offset should now be >= 3 (effectiveOffset 0 + bytes read)
         Assert.True(offset <= 3 || offset == tot2);
@@ -81,12 +83,13 @@ public class FileTailerTests : IDisposable
         var p = MakePath("log3.txt");
         File.WriteAllText(p, "x");
 
+        IFileTailer tailer = new FileTailer();
         long offset = 0;
-        FileTailer.ReadAppended(p, ref offset, _ => { }, out var total);
+        tailer.ReadAppended(p, ref offset, _ => { }, out var total);
 
         File.Delete(p);
 
-        var status = FileTailer.ReadAppended(p, ref offset, _ => { }, out var tot2);
+        var status = tailer.ReadAppended(p, ref offset, _ => { }, out var tot2);
         Assert.True(status == TailReadStatus.FileNotFound || status == TailReadStatus.NoData ||
                     status == TailReadStatus.TruncatedReset);
     }

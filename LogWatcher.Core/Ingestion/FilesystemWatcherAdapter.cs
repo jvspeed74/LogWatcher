@@ -23,7 +23,8 @@ namespace LogWatcher.Core.Ingestion
             Func<string, bool>? isProcessable = null)
         {
             ArgumentNullException.ThrowIfNull(path);
-            _bus = bus ?? throw new ArgumentNullException(nameof(bus));
+            ArgumentNullException.ThrowIfNull(bus);
+            _bus = bus;
             _isProcessable = isProcessable ?? DefaultIsProcessable;
 
             // TODO: Consider validating that the path exists and is a directory before creating the watcher

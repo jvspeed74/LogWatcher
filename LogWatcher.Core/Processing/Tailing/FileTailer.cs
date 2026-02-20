@@ -2,21 +2,13 @@ using System.Buffers;
 
 namespace LogWatcher.Core.Processing.Tailing
 {
-    // TODO: FileTailer exposes only static members, making it impossible to substitute or mock in unit tests.
-    // Callers (e.g. FileProcessor) are forced to use real file I/O even when testing higher-level logic.
-    // Consider introducing an IFileTailer interface and an instance-based implementation so the I/O layer
-    // can be replaced with a test double without hitting the filesystem.
-
     /// <summary>
     /// Utility to read bytes that have been appended to a file since a given offset.
     /// </summary>
-    public sealed class FileTailer
+    public sealed class FileTailer : IFileTailer
     {
         // TODO: Consider making chunk size configurable per file type or based on available memory
-        // FIXME: DefaultChunkSize is defined here as a private constant, but the same literal (64 * 1024) is
-        // independently duplicated as the default argument in IFileProcessor.ProcessOnce and FileProcessor.ProcessOnce.
-        // There is no single source of truth for this value; changing it in one place silently diverges from the others.
-        private const int DefaultChunkSize = 64 * 1024;
+        public const int DefaultChunkSize = 64 * 1024;
 
         // TODO: The method signature uses both a `ref` parameter (offset) and an `out` parameter (totalBytesRead),
         // which produces a complex call site that is easy to misuse. Grouping these into a dedicated result record
@@ -42,12 +34,9 @@ namespace LogWatcher.Core.Processing.Tailing
         /// <param name="chunkSize">Maximum chunk size to use when reading; when &lt;= 0 the default of 64 KiB is used.</param>
         /// <returns>A <see cref="TailReadStatus"/> describing the outcome of the read operation.</returns>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> or <paramref name="onChunk"/> is <c>null</c>.</exception>
-        public static TailReadStatus ReadAppended(
-            string path,
-            ref long offset,
-            Action<ReadOnlySpan<byte>> onChunk,
-            out int totalBytesRead,
-            int chunkSize = DefaultChunkSize)
+        /// <inheritdoc/>
+        public TailReadStatus ReadAppended(string path, ref long offset, Action<ReadOnlySpan<byte>> onChunk,
+            out int totalBytesRead, int chunkSize = DefaultChunkSize)
         {
             ArgumentNullException.ThrowIfNull(path);
             ArgumentNullException.ThrowIfNull(onChunk);
@@ -82,25 +71,12 @@ namespace LogWatcher.Core.Processing.Tailing
                     truncated = true;
                 }
 
-                // TODO: The two guard conditions below (`effectiveOffset > length` and `effectiveOffset == length`)
-                // could be unified into a single `effectiveOffset >= length` check. Their separate presence implies
-                // distinct semantics, but both branches return the same status values, creating unnecessary duplication
-                // and potential confusion for future maintainers.
-                if (effectiveOffset > length)
+                if (effectiveOffset >= length)
                 {
-                    // no data
+                    // no new data (or file was truncated to exactly this offset)
                     if (truncated) return TailReadStatus.TruncatedReset;
                     return TailReadStatus.NoData;
                 }
-
-                if (effectiveOffset == length)
-                {
-                    // no new data
-                    if (truncated) return TailReadStatus.TruncatedReset;
-                    return TailReadStatus.NoData;
-                }
-
-                // seek to effectiveOffset
                 fs.Seek(effectiveOffset, SeekOrigin.Begin);
 
                 // TODO: Consider using FileStream.ReadAsync for better async I/O performance in high-throughput scenarios
@@ -122,36 +98,25 @@ namespace LogWatcher.Core.Processing.Tailing
                     return truncated ? TailReadStatus.TruncatedReset : TailReadStatus.ReadSome;
                 }
 
-                // FIXME: The comment below ("shouldn't reach here") is inaccurate. This path can be reached if
-                // `fs.Read` returns 0 without EOF, for example during a concurrent truncation that occurs between
-                // the `fs.Length` snapshot and the actual read. The comment gives a false guarantee and may cause
-                // future maintainers to overlook a real edge case.
-                // If we didn't read (shouldn't reach here because effectiveOffset==length handled), handle fallthrough
+                // If fs.Read returned 0 without advancing (e.g. due to concurrent truncation between the
+                // fs.Length snapshot and the actual read), fall through and report the appropriate status.
                 if (truncated) return TailReadStatus.TruncatedReset;
                 return TailReadStatus.NoData;
             }
             catch (FileNotFoundException)
             {
-                // TODO: The `totalBytesRead = 0` reset in each catch block is redundant because totalBytesRead is
-                // already initialized to 0 at the start of the method and is only incremented inside the try block,
-                // which is not entered if an exception is thrown before that point. Consider removing the resets to
-                // reduce noise, or encapsulate error-return logic in a shared helper to eliminate the repetition.
-                totalBytesRead = 0;
                 return TailReadStatus.FileNotFound;
             }
             catch (DirectoryNotFoundException)
             {
-                totalBytesRead = 0;
                 return TailReadStatus.FileNotFound;
             }
             catch (UnauthorizedAccessException)
             {
-                totalBytesRead = 0;
                 return TailReadStatus.AccessDenied;
             }
             catch (IOException)
             {
-                totalBytesRead = 0;
                 return TailReadStatus.IoError;
             }
             finally

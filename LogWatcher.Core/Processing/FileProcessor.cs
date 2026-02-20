@@ -24,35 +24,27 @@ namespace LogWatcher.Core.Processing
         /// <param name="state">File-specific state object (offset/carry buffer) that will be read and updated.</param>
         /// <param name="stats">Worker-local statistics buffer that will be updated from parsed lines.</param>
         /// <param name="chunkSize">Optional read chunk size passed to the file tailer. Defaults to 64KiB.</param>
-        // FIXME: The default value `64 * 1024` here is a bare literal that duplicates the same constant defined
-        // privately in FileTailer (DefaultChunkSize) and again in FileProcessor.ProcessOnce. All three must be
-        // kept in sync manually. A shared public constant exposed from FileTailer (or a separate constants class)
-        // would provide a single source of truth.
-        void ProcessOnce(string path, FileState state, WorkerStatsBuffer stats, int chunkSize = 64 * 1024);
+        void ProcessOnce(string path, FileState state, WorkerStatsBuffer stats, int chunkSize = FileTailer.DefaultChunkSize);
     }
-
-    // TODO: FileProcessor.ProcessOnce hard-codes static calls to FileTailer, Utf8LineScanner, and LogParser.
-    // None of these dependencies can be replaced with test doubles, so FileProcessor cannot be unit-tested
-    // in isolation without real file I/O and real parsing. Consider injecting these as abstractions (interfaces
-    // or delegates) through the constructor so each concern can be tested and substituted independently.
 
     // FileProcessor: tail -> scan -> parse -> update WorkerStatsBuffer
     /// <summary>
-    /// Implementation of <see cref="IFileProcessor"/> that uses <see cref="FileTailer"/>,
+    /// Implementation of <see cref="IFileProcessor"/> that uses <see cref="IFileTailer"/>,
     /// <see cref="Utf8LineScanner"/> and <see cref="LogParser"/> to read appended data,
     /// parse newline-delimited UTF-8 log lines and update a <see cref="WorkerStatsBuffer"/>.
     /// </summary>
     public sealed class FileProcessor : IFileProcessor
     {
+        private readonly IFileTailer _tailer;
+
         /// <summary>
-        /// Creates a new <see cref="FileProcessor"/>.
+        /// Creates a new <see cref="FileProcessor"/>. An optional <see cref="IFileTailer"/> may be supplied
+        /// (useful for tests); when <c>null</c> a default <see cref="FileTailer"/> is used.
         /// </summary>
-        // TODO: This constructor is vestigial. All dependencies (FileTailer, Utf8LineScanner, LogParser) are
-        // consumed as static calls, so there is nothing to inject or configure here. The empty constructor gives
-        // callers the false impression that FileProcessor has no dependencies, masking the real coupling.
-        // If the static dependencies were replaced with injected abstractions, this constructor would need parameters.
-        public FileProcessor()
+        /// <param name="tailer">Optional tailer used to read appended bytes from files.</param>
+        public FileProcessor(IFileTailer? tailer = null)
         {
+            _tailer = tailer ?? new FileTailer();
         }
 
         // TODO: ProcessOnce violates the Single Responsibility Principle. It performs five distinct concerns
@@ -64,9 +56,6 @@ namespace LogWatcher.Core.Processing
         // exception propagation, and stat mutation hard to follow. Extracting the inner bodies into named
         // private methods (e.g., ProcessChunk, ProcessLine) would improve readability and testability.
         //
-        // FIXME: The default value `chunkSize = 64 * 1024` is a bare literal here and in IFileProcessor.ProcessOnce,
-        // duplicating the same magic number that FileTailer already defines as DefaultChunkSize (private).
-        // There is no single authoritative constant; changing the value in one place silently diverges from the others.
         /// <summary>
         /// Process whatever is appended right now. Caller must hold <c>state.Gate</c>.
         /// This method advances <c>state.Offset</c> only after processing completes successfully.
@@ -78,13 +67,13 @@ namespace LogWatcher.Core.Processing
         /// <param name="stats">Worker-local statistics buffer to update. Must not be <c>null</c>.</param>
         /// <param name="chunkSize">Read buffer size in bytes for tailer. Defaults to 64KiB.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/>, <paramref name="state"/>, or <paramref name="stats"/> is <c>null</c>.</exception>
-        public void ProcessOnce(string path, FileState state, WorkerStatsBuffer stats, int chunkSize = 64 * 1024)
+        public void ProcessOnce(string path, FileState state, WorkerStatsBuffer stats, int chunkSize = FileTailer.DefaultChunkSize)
         {
             // Precondition: caller must hold state.Gate. We won't double-check locking here, but document it.
             // Use local offset to avoid advancing state.Offset until processing completes.
             long localOffset = state.Offset;
 
-            TailReadStatus status = FileTailer.ReadAppended(path, ref localOffset, chunk =>
+            TailReadStatus status = _tailer.ReadAppended(path, ref localOffset, chunk =>
             {
                 // For each chunk, run the UTF8 scanner using state's carry buffer
                 Utf8LineScanner.Scan(chunk, ref state.Carry, line =>
@@ -137,13 +126,8 @@ namespace LogWatcher.Core.Processing
                 case TailReadStatus.TruncatedReset:
                     stats.TruncationResetCount++;
                     break;
-                // FIXME: The `default:` catch-all here silently absorbs any future TailReadStatus values that are
-                // added to the enum. NoData and ReadSome are listed explicitly, but new statuses would fall through
-                // to the empty default without any counter update or compile-time warning. Consider removing the
-                // default and letting the compiler warn on unhandled cases, or throw for truly unexpected values.
                 case TailReadStatus.NoData:
                 case TailReadStatus.ReadSome:
-                default:
                     break;
             }
 
