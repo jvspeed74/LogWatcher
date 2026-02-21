@@ -5,6 +5,53 @@ namespace LogWatcher.Tests.Unit.Core.FileManagement;
 public class FileStateRegistryTests
 {
     [Fact]
+    [Invariant("FM-001")]
+    public void GetOrCreate_AfterFinalizeDelete_ReturnsNewStateWithZeroOffset()
+    {
+        var reg = new FileStateRegistry();
+        var path = "/tmp/test_fm001.log";
+
+        var state1 = reg.GetOrCreate(path);
+        lock (state1.Gate) { state1.Offset = 500; }
+
+        reg.FinalizeDelete(path);
+
+        // New state must not share or reuse the old offset
+        var state2 = reg.GetOrCreate(path);
+        Assert.NotSame(state1, state2);
+        lock (state2.Gate)
+        {
+            Assert.Equal(0, state2.Offset);
+        }
+    }
+
+    [Fact]
+    [Invariant("FM-007")]
+    public async Task FileState_OffsetMutatedUnderGate_ProducesConsistentResult()
+    {
+        var state = new FileState();
+        const int threads = 8;
+        const int iterations = 100;
+
+        // Multiple threads incrementing offset while holding gate must produce a consistent total
+        var tasks = Enumerable.Range(0, threads)
+            .Select(_ => Task.Run(() =>
+            {
+                for (int i = 0; i < iterations; i++)
+                {
+                    lock (state.Gate)
+                    {
+                        state.Offset++;
+                    }
+                }
+            }))
+            .ToArray();
+
+        await Task.WhenAll(tasks);
+        Assert.Equal((long)(threads * iterations), state.Offset);
+    }
+
+    [Fact]
     [Invariant("FM-004")]
     [Invariant("FM-005")]
     [Invariant("FM-006")]

@@ -73,6 +73,24 @@ public class LogParserTests
     }
 
     [Fact]
+    [Invariant("PRS-004")]
+    public void MessageKey_SpanPointsIntoInputBytes_MustBeConsumedBeforeInputIsReleased()
+    {
+        // ParsedLogLine is a ref struct; MessageKey is a ReadOnlySpan<byte> pointing into the
+        // original input bytes. Callers must consume it within the scope where the input is valid.
+        var input = Encoding.UTF8.GetBytes("2023-01-02T03:04:05Z INFO request_started latency_ms=5");
+
+        string keyConsumedInScope = string.Empty;
+        if (LogParser.TryParse(input, out var parsed))
+        {
+            // Consume MessageKey immediately while input is still in scope
+            keyConsumedInScope = Encoding.UTF8.GetString(parsed.MessageKey);
+        }
+
+        Assert.Equal("request_started", keyConsumedInScope);
+    }
+
+    [Fact]
     [Invariant("PRS-003")]
     public void TryParse_WithOffsetOrZuluTimestamp_ParsesBoth()
     {

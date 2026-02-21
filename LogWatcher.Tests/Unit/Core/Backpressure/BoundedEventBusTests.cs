@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 using LogWatcher.Core.Backpressure;
 
@@ -78,6 +79,22 @@ public class BoundedEventBusTests
         Assert.Equal(producers * perProducer, count);
         Assert.Equal(producers * perProducer, bus.PublishedCount);
         Assert.Equal(0, bus.DroppedCount);
+    }
+
+    [Fact]
+    [Invariant("BP-006")]
+    public void Publish_WhenBusFull_ReturnsImmediatelyWithoutBlocking()
+    {
+        var bus = new BoundedEventBus<int>(1);
+        bus.Publish(1); // fill bus to capacity
+
+        // Publish when full must not block; it must drop and return immediately
+        var sw = Stopwatch.StartNew();
+        var result = bus.Publish(2);
+        sw.Stop();
+
+        Assert.False(result); // dropped
+        Assert.True(sw.ElapsedMilliseconds < 200, "Publish must not block waiting for queue capacity");
     }
 
     [Fact]
