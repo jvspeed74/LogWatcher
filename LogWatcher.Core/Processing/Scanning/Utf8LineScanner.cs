@@ -24,20 +24,11 @@ namespace LogWatcher.Core.Processing.Scanning
         {
             ArgumentNullException.ThrowIfNull(onLine);
 
-            // TODO: Consider adding a maximum line length check to prevent unbounded memory growth from malformed input
             // Handle the carry path first
             if (carry.Length > 0)
             {
                 // find first '\n' in chunk
-                int nlIndex = -1;
-                for (int i = 0; i < chunk.Length; i++)
-                {
-                    if (chunk[i] == (byte)'\n')
-                    {
-                        nlIndex = i;
-                        break;
-                    }
-                }
+                int nlIndex = chunk.IndexOf((byte)'\n');
 
                 if (nlIndex == -1)
                 {
@@ -70,18 +61,10 @@ namespace LogWatcher.Core.Processing.Scanning
             int start = 0;
             while (start < chunk.Length)
             {
-                int j = -1;
-                for (int i = start; i < chunk.Length; i++)
-                {
-                    if (chunk[i] == (byte)'\n')
-                    {
-                        j = i;
-                        break;
-                    }
-                }
-
+                int j = chunk.Slice(start).IndexOf((byte)'\n');
                 if (j == -1)
                     break; // no more newlines
+                j += start; // adjust to full chunk index
 
                 var lineSpan = chunk.Slice(start, j - start);
                 if (lineSpan.Length > 0 && lineSpan[lineSpan.Length - 1] == (byte)'\r')

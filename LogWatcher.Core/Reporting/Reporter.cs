@@ -10,15 +10,15 @@ namespace LogWatcher.Core.Reporting
     /// Periodically requests worker stats swaps, merges per-worker buffers into a <see cref="GlobalSnapshot"/>, and prints a report.
     /// The reporter runs on a background thread when <see cref="Start"/> is called and stops after <see cref="Stop"/> is invoked.
     /// </summary>
-    public sealed class Reporter
+    public sealed class Reporter : IDisposable
     {
         private readonly WorkerStats[] _workers;
         private readonly BoundedEventBus<FsEvent> _bus;
         private readonly int _topK;
         private readonly int _intervalSeconds;
         private readonly TimeSpan _ackTimeout;
-        private Thread? _thread;
-        private volatile bool _stopping;
+        private Task? _loopTask;
+        private CancellationTokenSource? _cts;
 
         // snapshot reused across reports
         private readonly GlobalSnapshot _snapshot;
@@ -56,8 +56,8 @@ namespace LogWatcher.Core.Reporting
         }
 
         /// <summary>
-        /// Starts the reporter's background thread which will periodically collect and print reports.
-        /// Calling <see cref="Start"/> when already started will create a new background thread; callers should ensure it is not started multiple times unintentionally.
+        /// Starts the reporter's background loop which will periodically collect and print reports.
+        /// Calling <see cref="Start"/> when already started will create a new background task; callers should ensure it is not started multiple times unintentionally.
         /// </summary>
         public void Start()
         {
@@ -67,81 +67,91 @@ namespace LogWatcher.Core.Reporting
             _lastGen1 = GC.CollectionCount(1);
             _lastGen2 = GC.CollectionCount(2);
 
-            _stopping = false;
-            _thread = new Thread(ReporterLoop) { IsBackground = true, Name = "reporter" };
-            _thread.Start();
+            _cts = new CancellationTokenSource();
+            _loopTask = Task.Run(() => ReporterLoopAsync(_cts.Token));
         }
 
         /// <summary>
-        /// Requests the reporter to stop and waits briefly for the background thread to exit.
+        /// Requests the reporter to stop and waits briefly for the background loop to exit.
         /// </summary>
         public void Stop()
         {
-            _stopping = true;
+            _cts?.Cancel();
             try
             {
-                _thread?.Join(2000);
+                _loopTask?.Wait(2000);
+            }
+            catch (AggregateException aex) when (aex.InnerExceptions.All(e => e is OperationCanceledException))
+            {
+                // expected: loop cancelled normally
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Reporter.Stop join error: {ex}");
+                Console.Error.WriteLine($"Reporter.Stop wait error: {ex}");
+            }
+            finally
+            {
+                _cts?.Dispose();
+                _cts = null;
             }
         }
 
-        private void ReporterLoop()
+        /// <summary>
+        /// Stops the reporter and disposes the internal cancellation token source.
+        /// </summary>
+        public void Dispose()
+        {
+            Stop();
+        }
+
+        private async Task ReporterLoopAsync(CancellationToken ct)
         {
             var sw = Stopwatch.StartNew();
             long lastTicks = sw.ElapsedTicks;
 
-            while (!_stopping)
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(_intervalSeconds));
+            try
             {
-                Thread.Sleep(TimeSpan.FromSeconds(_intervalSeconds));
-
-                var nowTicks = sw.ElapsedTicks;
-                double elapsedSeconds = (nowTicks - lastTicks) / (double)Stopwatch.Frequency;
-                lastTicks = nowTicks;
-
-                // Swap phase
-                foreach (var w in _workers) w.RequestSwap();
-                // wait for acks with configured timeout — run waits in parallel so one slow worker doesn't consume full timeout for all
-                using var cts = new CancellationTokenSource(_ackTimeout);
-                try
+                while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
                 {
-                    var tasks = _workers.Select((w, idx) => Task.Run(() =>
+                    var nowTicks = sw.ElapsedTicks;
+                    double elapsedSeconds = (nowTicks - lastTicks) / (double)Stopwatch.Frequency;
+                    lastTicks = nowTicks;
+
+                    // Swap phase
+                    foreach (var w in _workers) w.RequestSwap();
+                    // wait for acks sequentially within a shared deadline
+                    using var swapCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    swapCts.CancelAfter(_ackTimeout);
+                    int acked = 0;
+                    foreach (var w in _workers)
                     {
                         try
                         {
-                            w.WaitForSwapAck(cts.Token);
-                            return idx; // acked index
+                            w.WaitForSwapAck(swapCts.Token);
+                            acked++;
                         }
                         catch (OperationCanceledException)
                         {
-                            return -1; // not acked
+                            if (ct.IsCancellationRequested) break;
                         }
-                    })).ToArray();
+                    }
 
-                    // Wait for all tasks to complete within the ack timeout
-                    Task.WaitAll(tasks, _ackTimeout);
-
-                    // collect acknowledgements
-                    var ackedIndices = tasks.Where(t => t.IsCompleted && t.Result >= 0).Select(t => t.Result).ToArray();
-                    int acked = ackedIndices.Length;
                     if (acked != _workers.Length)
                     {
-                        Console.Error.WriteLine($"Reporter: swap wait timed out (acked={acked} of {_workers.Length}); ackedIndices=[{string.Join(',', ackedIndices)}]");
+                        Console.Error.WriteLine($"Reporter: swap wait timed out (acked={acked} of {_workers.Length})");
                     }
-                }
-                catch (Exception ex) when (ex is AggregateException || ex is OperationCanceledException)
-                {
-                    // timeout or task exception; proceed with what we have
-                    Console.Error.WriteLine("Reporter: swap wait timed out");
-                }
 
-                // Merge/Frame build
-                var frame = BuildSnapshotAndFrame();
+                    // Merge/Frame build
+                    var frame = BuildSnapshotAndFrame();
 
-                // Print
-                PrintReportFrame(frame, elapsedSeconds);
+                    // Print
+                    PrintReportFrame(frame, elapsedSeconds);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // normal shutdown
             }
 
             // optional final report on stop

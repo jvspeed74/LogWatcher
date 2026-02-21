@@ -9,12 +9,14 @@ public struct PartialLineBuffer
     /// <summary>
     /// Underlying buffer that stores appended bytes. May be <c>null</c> when empty.
     /// </summary>
-    public byte[]? Buffer { get; private set; }
+#pragma warning disable CA1051 // hot-path mutable struct: direct field access is the design
+    public byte[]? Buffer;
 
     /// <summary>
     /// Number of valid bytes in <see cref="Buffer"/> (0..Buffer.Length).
     /// </summary>
-    public int Length { get; private set; }
+    public int Length;
+#pragma warning restore CA1051
 
     private const int InitialSize = 256;
 

@@ -60,9 +60,7 @@ namespace LogWatcher.Core.Backpressure
         /// <returns>True when an item was dequeued; false on timeout or when the bus is stopped and empty.</returns>
         public bool TryDequeue(out T item, int timeoutMs)
         {
-            // FIXME: Using DateTime.UtcNow for deadline calculation can be inaccurate under system clock adjustments
-            // Consider using Stopwatch or Environment.TickCount64 for more reliable timeout handling
-            var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(Math.Max(0, timeoutMs));
+            long deadlineMs = Environment.TickCount64 + Math.Max(0, timeoutMs);
 
             lock (_lock)
             {
@@ -80,7 +78,7 @@ namespace LogWatcher.Core.Backpressure
                         return false;
                     }
 
-                    var remaining = (int)Math.Max(0, (deadline - DateTime.UtcNow).TotalMilliseconds);
+                    var remaining = (int)Math.Max(0L, deadlineMs - Environment.TickCount64);
                     if (remaining == 0)
                     {
                         item = default!;

@@ -43,11 +43,7 @@ namespace LogWatcher.Core.Processing.Parsing
             "yyyy-MM-ddTHH:mm:ss.fffffffK"
         };
 
-        private static ReadOnlySpan<byte> LatencyPrefix => new byte[]
-        {
-            (byte)'l', (byte)'a', (byte)'t', (byte)'e', (byte)'n', (byte)'c', (byte)'y', (byte)'_', (byte)'m',
-            (byte)'s', (byte)'='
-        };
+        private static ReadOnlySpan<byte> LatencyPrefix => "latency_ms="u8;
 
         /// <summary>
         /// Attempts to parse a single UTF‑8 encoded log line into a <see cref="ParsedLogLine"/> view.
@@ -60,9 +56,9 @@ namespace LogWatcher.Core.Processing.Parsing
             parsed = default;
 
             // 1. Tokenization: find first and second spaces
-            int s1 = IndexOfByte(line, (byte)' ');
+            int s1 = line.IndexOf((byte)' ');
             if (s1 == -1) return false;
-            int s2 = IndexOfByte(line.Slice(s1 + 1), (byte)' ');
+            int s2 = line.Slice(s1 + 1).IndexOf((byte)' ');
             if (s2 == -1) return false;
             s2 = s2 + s1 + 1; // adjust to original span
 
@@ -93,7 +89,7 @@ namespace LogWatcher.Core.Processing.Parsing
             }
             else
             {
-                int firstSpaceInMsg = IndexOfByte(messageSpan, (byte)' ');
+                int firstSpaceInMsg = messageSpan.IndexOf((byte)' ');
                 if (firstSpaceInMsg == -1)
                     messageKey = messageSpan;
                 else
@@ -102,35 +98,16 @@ namespace LogWatcher.Core.Processing.Parsing
 
             // 5. Extract latency
             int? latency = null;
-            int idx = IndexOfSubsequence(line, LatencyPrefix);
+            int idx = line.IndexOf(LatencyPrefix);
             if (idx >= 0)
             {
                 int valueStart = idx + LatencyPrefix.Length;
                 if (valueStart < line.Length)
                 {
                     var valSpan = line.Slice(valueStart);
-                    // parse consecutive digits
-                    int i = 0;
-                    long acc = 0;
-                    bool any = false;
-                    while (i < valSpan.Length)
+                    if (System.Buffers.Text.Utf8Parser.TryParse(valSpan, out int parsedLatency, out _))
                     {
-                        byte b = valSpan[i];
-                        if (b < (byte)'0' || b > (byte)'9') break;
-                        any = true;
-                        acc = acc * 10 + (b - (byte)'0');
-                        if (acc > int.MaxValue)
-                        {
-                            any = false;
-                            break;
-                        }
-
-                        i++;
-                    }
-
-                    if (any && i > 0)
-                    {
-                        latency = (int)acc;
+                        latency = parsedLatency;
                     }
                 }
             }
@@ -139,71 +116,17 @@ namespace LogWatcher.Core.Processing.Parsing
             return true;
         }
 
-        private static int IndexOfByte(ReadOnlySpan<byte> span, byte value)
-        {
-            // FIXME: Replace with ReadOnlySpan<byte>.IndexOf() for better performance
-            // The built-in IndexOf uses vectorized operations on supported platforms
-            for (int i = 0; i < span.Length; i++)
-                if (span[i] == value)
-                    return i;
-            return -1;
-        }
-
         private static LogLevel ParseLevel(ReadOnlySpan<byte> span)
         {
             if (span.Length == 0) return LogLevel.Other;
 
             // compare against known levels
-            if (EqualsIgnoreCaseAscii(span, "INFO")) return LogLevel.Info;
-            if (EqualsIgnoreCaseAscii(span, "WARN")) return LogLevel.Warn;
-            if (EqualsIgnoreCaseAscii(span, "ERROR")) return LogLevel.Error;
-            if (EqualsIgnoreCaseAscii(span, "DEBUG")) return LogLevel.Debug;
+            if (System.Text.Ascii.EqualsIgnoreCase(span, "INFO"u8)) return LogLevel.Info;
+            if (System.Text.Ascii.EqualsIgnoreCase(span, "WARN"u8)) return LogLevel.Warn;
+            if (System.Text.Ascii.EqualsIgnoreCase(span, "ERROR"u8)) return LogLevel.Error;
+            if (System.Text.Ascii.EqualsIgnoreCase(span, "DEBUG"u8)) return LogLevel.Debug;
 
             return LogLevel.Other;
-        }
-
-        private static bool EqualsIgnoreCaseAscii(ReadOnlySpan<byte> left, string right)
-        {
-            if (left.Length != right.Length) return false;
-            for (int i = 0; i < left.Length; i++)
-            {
-                byte lb = left[i];
-                char rc = right[i];
-                // normalize lb to upper-case ASCII
-                if (lb >= (byte)'a' && lb <= (byte)'z') lb = (byte)(lb - 32);
-                if (lb != (byte)rc) return false;
-            }
-
-            return true;
-        }
-
-        private static int IndexOfSubsequence(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needle)
-        {
-            // TODO: Consider using Boyer-Moore or other efficient substring search algorithm for better performance
-            // Current naive implementation has O(n*m) complexity
-            if (needle.Length == 0) return 0;
-            if (needle.Length > haystack.Length) return -1;
-
-            for (int i = 0; i <= haystack.Length - needle.Length; i++)
-            {
-                bool ok = true;
-                for (int j = 0; j < needle.Length; j++)
-                {
-                    byte a = haystack[i + j];
-                    byte b = needle[j];
-                    // case-insensitive match for latency prefix (we stored lower-case)
-                    if (a >= (byte)'A' && a <= (byte)'Z') a = (byte)(a + 32);
-                    if (a != b)
-                    {
-                        ok = false;
-                        break;
-                    }
-                }
-
-                if (ok) return i;
-            }
-
-            return -1;
         }
     }
 }
