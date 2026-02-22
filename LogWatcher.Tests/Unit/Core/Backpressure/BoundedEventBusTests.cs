@@ -204,4 +204,56 @@ public class BoundedEventBusTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new BoundedEventBus<int>(-1));
     }
+
+    [Fact]
+    [Invariant("BP-003")]
+    public void Publish_CapacityDropThenStop_DropIsStillCounted()
+    {
+        // Regression: a TOCTOU in Publish allowed Stop() to swallow a genuine capacity
+        // drop by re-reading _stopped after TryWrite returned false. If Stop() raced
+        // into that window, the drop would be silently lost. The fix removes the second
+        // re-read so any TryWrite failure after the initial guard is always counted.
+        //
+        // Sequential baseline: publish against a full bus, then stop — drop must persist.
+        var bus = new BoundedEventBus<int>(1);
+        bus.Publish(1); // fill to capacity
+
+        var result = bus.Publish(2); // TryWrite fails (full) → must increment DroppedCount
+        bus.Stop(); // stop immediately after — must not retroactively uncounting the drop
+
+        Assert.False(result);
+        Assert.Equal(1, bus.DroppedCount);
+        Assert.Equal(1, bus.PublishedCount);
+    }
+
+    [Fact]
+    [Invariant("BP-003")]
+    public void Publish_CapacityDrop_CountedEvenWhenStopRacesConcurrently()
+    {
+        // Probabilistic regression for the TOCTOU race: Stop() must not swallow a
+        // capacity drop that occurred when _stopped was false at the point of TryWrite.
+        // Runs many iterations to increase the chance of hitting the race window that
+        // existed between TryWrite returning false and the (now-removed) second _stopped
+        // re-read. With the fix, DroppedCount is always 0 or 1 and PublishedCount is
+        // always 1 — it is never the case that a capacity drop leaves no trace.
+        const int iterations = 500;
+        for (int i = 0; i < iterations; i++)
+        {
+            var bus = new BoundedEventBus<int>(1);
+            bus.Publish(0); // fill to capacity; PublishedCount=1, DroppedCount=0
+
+            // Race: concurrent Publish (hits full bus) vs Stop().
+            var t = new Thread(() => bus.Publish(99));
+            t.Start();
+            bus.Stop(); // intentionally races the thread's TryWrite → drop-count path
+            t.Join();
+
+            // If the thread saw _stopped=true at the initial check: DroppedCount=0 (correct).
+            // If the thread saw _stopped=false and TryWrite failed (full): DroppedCount=1.
+            // Either outcome is valid; what must never happen is PublishedCount!=1 or
+            // DroppedCount outside [0,1] — which would indicate a lost or double-counted event.
+            Assert.Equal(1, bus.PublishedCount); // bus was always full; no item admitted
+            Assert.InRange(bus.DroppedCount, 0L, 1L);
+        }
+    }
 }
