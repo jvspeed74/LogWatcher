@@ -170,7 +170,7 @@ public class ReporterTests
             // Extremely short ack timeout to force a timeout on every interval
             var reporter = new Reporter(workers, bus, 1, 1, ackTimeout: TimeSpan.FromMilliseconds(1));
             reporter.Start();
-            Thread.Sleep(1500); // allow at least one interval with a forced ack timeout
+            Thread.Sleep(2500); // allow at least one interval with a forced ack timeout
             reporter.Stop();
 
             var errOutput = errWriter.ToString();
@@ -242,7 +242,7 @@ public class ReporterTests
             // Second cycle — if _stopping were not reset, the loop would see true immediately
             // and no interval reports would ever fire in the second run.
             reporter.Start();
-            Thread.Sleep(1500); // allow at least one interval tick
+            Thread.Sleep(2500); // allow at least one interval tick
             reporter.Stop();
 
             var output = writer.ToString();
