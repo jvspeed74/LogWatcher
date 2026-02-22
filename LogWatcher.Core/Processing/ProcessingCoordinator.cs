@@ -18,7 +18,7 @@ namespace LogWatcher.Core.Processing
         private readonly Thread[] _threads;
         private readonly int _dequeueTimeoutMs;
 
-        private volatile bool _stopping;
+        private bool _stopping;
 
         /// <summary>
         /// Creates a new <see cref="ProcessingCoordinator"/>.
@@ -53,7 +53,7 @@ namespace LogWatcher.Core.Processing
         /// </summary>
         public void Start()
         {
-            _stopping = false;
+            Volatile.Write(ref _stopping, false);
             foreach (var t in _threads)
             {
                 t.Start();
@@ -66,7 +66,7 @@ namespace LogWatcher.Core.Processing
         /// </summary>
         public void Stop()
         {
-            _stopping = true;
+            Volatile.Write(ref _stopping, true);
             _bus.Stop();
             try
             {
@@ -84,7 +84,7 @@ namespace LogWatcher.Core.Processing
         private void WorkerLoop(int workerIndex)
         {
             var stats = _workerStats[workerIndex];
-            while (!_stopping)
+            while (!Volatile.Read(ref _stopping))
             {
                 if (!_bus.TryDequeue(out var ev, _dequeueTimeoutMs))
                 {

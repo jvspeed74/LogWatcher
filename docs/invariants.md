@@ -158,6 +158,8 @@ public void Publish_WhenFull_DropsNewestAndPreservesExisting() { ... }
 | RPT-002 | `strict`      | RPT, STAT | The global snapshot is reset before each merge. Stale data from a prior interval is never included.                      |
 | RPT-003 | `behavioral`  | RPT       | The reporter emits at least one final report on shutdown.                                                                |
 | RPT-004 | `operational` | RPT, CD   | If a worker fails to acknowledge a swap within the timeout the reporter proceeds with available data and logs a warning. |
+| RPT-005 | `strict`      | RPT       | Calling `Stop()` causes the reporter background thread to exit within a bounded time; the stopping flag written by `Stop()` is always visible to the loop thread. |
+| RPT-006 | `strict`      | RPT       | `Start()` resets the stopping flag before launching the thread; a reporter that has been stopped can be restarted without hanging or skipping reports. |
 
 ---
 

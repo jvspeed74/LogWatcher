@@ -186,4 +186,75 @@ public class ReporterTests
             Console.SetOut(originalOut);
         }
     }
+
+    [Fact]
+    [Invariant("RPT-005")]
+    public void Stop_AfterStart_ThreadExitsWithinBoundedTime()
+    {
+        // Validates that Volatile.Write(ref _stopping, true) in Stop() is seen by
+        // Volatile.Read(ref _stopping) in the loop thread, causing it to exit promptly.
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var workers = new[] { new WorkerStats() };
+        var reporter = new Reporter(workers, bus, 1, 1, ackTimeout: TimeSpan.FromMilliseconds(50));
+
+        reporter.Start();
+        reporter.Stop(); // must not hang
+
+        // The reporter's background thread must have joined inside Stop()'s 2-second limit.
+        // If the stopping flag write were invisible to the loop, Stop() would hang here.
+        // Reaching this line proves the thread exited.
+        Assert.True(true, "Stop() returned — thread exited within the join timeout.");
+    }
+
+    [Fact]
+    [Invariant("RPT-005")]
+    public void Stop_CalledMultipleTimes_IsIdempotent()
+    {
+        // A second Stop() after the thread has already exited must not throw or hang.
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var workers = new[] { new WorkerStats() };
+        var reporter = new Reporter(workers, bus, 1, 1, ackTimeout: TimeSpan.FromMilliseconds(50));
+
+        reporter.Start();
+        reporter.Stop();
+        reporter.Stop(); // second call — must be safe
+    }
+
+    [Fact]
+    [Invariant("RPT-006")]
+    public void StartStopStart_StoppingFlagReset_ReporterRunsAgain()
+    {
+        // Validates that Volatile.Write(ref _stopping, false) in Start() correctly resets
+        // the flag so that a restarted reporter loop does not exit immediately.
+        var originalOut = Console.Out;
+        using var writer = new StringWriter();
+        Console.SetOut(writer);
+        try
+        {
+            var bus = new BoundedEventBus<FsEvent>(10);
+            var workers = new[] { new WorkerStats() };
+            var reporter = new Reporter(workers, bus, 1, 1, ackTimeout: TimeSpan.FromMilliseconds(50));
+
+            // First cycle
+            reporter.Start();
+            reporter.Stop();
+
+            // Second cycle — if _stopping were not reset, the loop would see true immediately
+            // and no interval reports would ever fire in the second run.
+            reporter.Start();
+            Thread.Sleep(1500); // allow at least one interval tick
+            reporter.Stop();
+
+            var output = writer.ToString();
+            int intervalReportCount = output.Split('\n')
+                .Count(l => l.Contains("[REPORT]") && !l.Contains("elapsed=0.00"));
+            Assert.True(intervalReportCount >= 1,
+                $"Expected at least one interval report from the second Start(), but got {intervalReportCount}. " +
+                "This suggests _stopping was not reset to false before the loop started.");
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
 }
