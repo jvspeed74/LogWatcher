@@ -204,8 +204,11 @@ namespace LogWatcher.Core.Processing.Parsing
         private static bool TryParseDigits2(ReadOnlySpan<byte> span, int pos, out int value)
         {
             value = 0;
-            // consumed == 2 guards against Utf8Parser accepting a leading digit followed by a
-            // non-digit (e.g. "1 " would parse as 1 with consumed=1 — not a valid two-digit field).
+            // HACK: Slicing to exactly 2 bytes before calling Utf8Parser is intentional.
+            // Utf8Parser stops at the first non-digit and returns the count of bytes consumed,
+            // so passing an unbounded slice would silently accept "1:" as the value 1 (consumed=1).
+            // Capping the slice to 2 and asserting consumed==2 enforces exact-width parsing
+            // with no per-byte branching, keeping the hot timestamp path branchless and allocation-free.
             return pos + 2 <= span.Length
                 && Utf8Parser.TryParse(span.Slice(pos, 2), out value, out int consumed)
                 && consumed == 2;
@@ -214,7 +217,8 @@ namespace LogWatcher.Core.Processing.Parsing
         private static bool TryParseDigits4(ReadOnlySpan<byte> span, int pos, out int value)
         {
             value = 0;
-            // consumed == 4 for the same reason as TryParseDigits2.
+            // HACK: Same fixed-slice technique as TryParseDigits2 — slice to exactly 4 bytes so
+            // Utf8Parser cannot over-consume and the consumed==4 assertion enforces exact width.
             return pos + 4 <= span.Length
                 && Utf8Parser.TryParse(span.Slice(pos, 4), out value, out int consumed)
                 && consumed == 4;
