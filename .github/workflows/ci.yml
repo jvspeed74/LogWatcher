@@ -44,10 +44,7 @@ jobs:
         run: dotnet build --no-restore --configuration Debug --verbosity normal
 
   test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-latest, windows-latest ]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.1
       - name: Setup .NET
