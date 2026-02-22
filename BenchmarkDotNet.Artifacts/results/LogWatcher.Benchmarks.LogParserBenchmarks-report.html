@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>LogWatcher.Benchmarks.LogParserBenchmarks-20260221-190858</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.13.12, Windows 11 (10.0.26100.7840)
+12th Gen Intel Core i7-12700K, 1 CPU, 20 logical and 12 physical cores
+.NET SDK 10.0.101
+  [Host]     : .NET 10.0.1 (10.0.125.57005), X64 RyuJIT AVX2
+  DefaultJob : .NET 10.0.1 (10.0.125.57005), X64 RyuJIT AVX2
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                     </th><th>Mean   </th><th>Error </th><th>StdDev</th><th>Gen0</th><th>Allocated</th>
+</tr>
+</thead><tbody><tr><td>TryParse_ValidLine_WithLatency</td><td>559.89 ns</td><td>3.616 ns</td><td>3.205 ns</td><td>0.0057</td><td>80 B</td>
+</tr><tr><td>TryParse_ValidLine_WithoutLatency</td><td>518.18 ns</td><td>1.980 ns</td><td>1.852 ns</td><td>0.0057</td><td>80 B</td>
+</tr><tr><td>TryParse_MalformedTimestamp</td><td>56.99 ns</td><td>0.131 ns</td><td>0.116 ns</td><td>0.0042</td><td>56 B</td>
+</tr><tr><td>TryParse_1000ValidLines</td><td>538,688.27 ns</td><td>4,011.031 ns</td><td>3,555.674 ns</td><td>5.8594</td><td>80000 B</td>
+</tr></tbody></table>
+</body>
+</html>

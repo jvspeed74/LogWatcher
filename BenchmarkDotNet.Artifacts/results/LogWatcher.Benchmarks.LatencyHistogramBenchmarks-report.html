@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>LogWatcher.Benchmarks.LatencyHistogramBenchmarks-20260221-190751</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.13.12, Windows 11 (10.0.26100.7840)
+12th Gen Intel Core i7-12700K, 1 CPU, 20 logical and 12 physical cores
+.NET SDK 10.0.101
+  [Host]     : .NET 10.0.1 (10.0.125.57005), X64 RyuJIT AVX2
+  DefaultJob : .NET 10.0.1 (10.0.125.57005), X64 RyuJIT AVX2
+  Job-HUDYDY : .NET 10.0.1 (10.0.125.57005), X64 RyuJIT AVX2
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method           </th><th>Job </th><th>InvocationCount</th><th>UnrollFactor</th><th>Mean    </th><th>Error</th><th>StdDev </th><th>Median  </th><th>Allocated</th>
+</tr>
+</thead><tbody><tr><td>Add_SingleSample</td><td>DefaultJob</td><td>Default</td><td>16</td><td>0.0037 ns</td><td>0.0056 ns</td><td>0.0052 ns</td><td>0.0006 ns</td><td>-</td>
+</tr><tr><td>Add_1000Samples</td><td>DefaultJob</td><td>Default</td><td>16</td><td>1,087.3760 ns</td><td>5.0709 ns</td><td>4.7433 ns</td><td>1,087.3501 ns</td><td>-</td>
+</tr><tr><td>Percentile_P99</td><td>DefaultJob</td><td>Default</td><td>16</td><td>3,122.1294 ns</td><td>8.0179 ns</td><td>7.4999 ns</td><td>3,122.8535 ns</td><td>-</td>
+</tr><tr><td>MergeFrom_FullHistogram</td><td>Job-HUDYDY</td><td>1</td><td>1</td><td>10,279.5918 ns</td><td>408.5663 ns</td><td>1,191.8070 ns</td><td>10,100.0000 ns</td><td>-</td>
+</tr></tbody></table>
+</body>
+</html>
