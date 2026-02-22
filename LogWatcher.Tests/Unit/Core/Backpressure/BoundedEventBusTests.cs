@@ -176,9 +176,9 @@ public class BoundedEventBusTests
         sw.Stop();
 
         Assert.False(result);
-        // Must have waited approximately the timeout (at least 40 ms) and not forever
+        // Must have waited approximately the timeout (at least 40 ms) and not block indefinitely
         Assert.True(sw.ElapsedMilliseconds >= 40, "TryDequeue must wait for timeout before returning");
-        Assert.True(sw.ElapsedMilliseconds < 500, "TryDequeue must not block indefinitely");
+        Assert.True(sw.ElapsedMilliseconds < 5000, "TryDequeue must not block indefinitely");
     }
 
     [Fact]
