@@ -48,12 +48,14 @@ namespace LogWatcher.Core.Processing.Parsing
         {
             parsed = default;
 
-            // 1. Tokenization: find first and second spaces
+            // 1. Tokenization: find first and second spaces to isolate the three fixed fields.
+            //    Line format: "<timestamp> <level> <message...>"
             int s1 = line.IndexOf((byte)' ');
             if (s1 == -1) return false;
             int s2 = line.Slice(s1 + 1).IndexOf((byte)' ');
             if (s2 == -1) return false;
-            s2 = s2 + s1 + 1; // adjust to original span
+            // s2 was found relative to the slice starting at s1+1; rebase it to the original span.
+            s2 = s2 + s1 + 1;
 
             var timestampBytes = line.Slice(0, s1);
             var levelBytes = line.Slice(s1 + 1, s2 - (s1 + 1));
@@ -80,7 +82,9 @@ namespace LogWatcher.Core.Processing.Parsing
                 messageKey = firstSpaceInMsg == -1 ? messageSpan : messageSpan.Slice(0, firstSpaceInMsg);
             }
 
-            // 5. Extract latency
+            // 5. Extract latency — search the entire line (not just the message field) because
+            //    latency_ms= may appear anywhere after the level token. Missing or unparseable
+            //    values are silently ignored; they never mark the line malformed (PRS-001).
             int? latency = null;
             int idx = line.IndexOf(LatencyPrefix);
             if (idx >= 0)
@@ -135,7 +139,9 @@ namespace LogWatcher.Core.Processing.Parsing
                 int fracLen = pos - fracStart;
                 if (fracLen == 0) return false; // '.' must be followed by at least one digit
 
-                // Convert up to three leading fraction digits to milliseconds
+                // Truncate to three significant digits (millisecond precision), then left-pad
+                // shorter fractions with trailing zeros so that ".1" → 100 ms, ".12" → 120 ms,
+                // ".123" → 123 ms, ".1234" → 123 ms (sub-millisecond precision is discarded).
                 int ms = 0;
                 int take = fracLen < 3 ? fracLen : 3;
                 for (int i = 0; i < take; i++)
@@ -174,7 +180,9 @@ namespace LogWatcher.Core.Processing.Parsing
             // Strict ISO-8601: no trailing characters allowed
             if (pos != span.Length) return false;
 
-            // Range-check fields that the DateTimeOffset constructor does not guard cheaply
+            // Range-check fields that the DateTimeOffset constructor does not guard cheaply.
+            // These catches the most common invalid values without paying exception overhead;
+            // the try/catch below handles the residual calendar-specific invalids (e.g. Feb 30).
             if (month < 1 || month > 12) return false;
             if (day < 1 || day > 31) return false;
             if (hour > 23 || minute > 59 || second > 59) return false;
@@ -196,6 +204,8 @@ namespace LogWatcher.Core.Processing.Parsing
         private static bool TryParseDigits2(ReadOnlySpan<byte> span, int pos, out int value)
         {
             value = 0;
+            // consumed == 2 guards against Utf8Parser accepting a leading digit followed by a
+            // non-digit (e.g. "1 " would parse as 1 with consumed=1 — not a valid two-digit field).
             return pos + 2 <= span.Length
                 && Utf8Parser.TryParse(span.Slice(pos, 2), out value, out int consumed)
                 && consumed == 2;
@@ -204,6 +214,7 @@ namespace LogWatcher.Core.Processing.Parsing
         private static bool TryParseDigits4(ReadOnlySpan<byte> span, int pos, out int value)
         {
             value = 0;
+            // consumed == 4 for the same reason as TryParseDigits2.
             return pos + 4 <= span.Length
                 && Utf8Parser.TryParse(span.Slice(pos, 4), out value, out int consumed)
                 && consumed == 4;
