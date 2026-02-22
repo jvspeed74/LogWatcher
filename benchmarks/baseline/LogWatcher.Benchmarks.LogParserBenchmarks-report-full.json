@@ -1,0 +1,172 @@
+{
+  "Title": "LogParserBenchmarks",
+  "HostEnvironmentInfo": {
+    "BenchmarkDotNetVersion": "0.14.0"
+  },
+  "Benchmarks": [
+    {
+      "FullName": "LogWatcher.Benchmarks.LogParserBenchmarks.TryParse_ValidLine_WithLatency",
+      "Namespace": "LogWatcher.Benchmarks",
+      "Type": "LogParserBenchmarks",
+      "Method": "TryParse_ValidLine_WithLatency",
+      "Statistics": {
+        "N": 3,
+        "Min": 430.0,
+        "LowerFence": 380.0,
+        "Q1": 460.0,
+        "Median": 500.0,
+        "Mean": 510.0,
+        "Q3": 555.0,
+        "UpperFence": 640.0,
+        "Max": 590.0,
+        "InterquartileRange": 95.0,
+        "StandardError": 20.0,
+        "Variance": 6400.0,
+        "StandardDeviation": 80.0,
+        "Skewness": 0.1,
+        "Kurtosis": 1.5,
+        "ConfidenceInterval": {
+          "Lower": 470.0,
+          "Mean": 510.0,
+          "Upper": 550.0,
+          "Level": 12,
+          "Margin": 40.0
+        },
+        "Percentiles": {
+          "P0": 430.0,
+          "P25": 460.0,
+          "P50": 500.0,
+          "P67": 525.0,
+          "P80": 555.0,
+          "P85": 565.0,
+          "P90": 575.0,
+          "P95": 582.0,
+          "P100": 590.0
+        }
+      }
+    },
+    {
+      "FullName": "LogWatcher.Benchmarks.LogParserBenchmarks.TryParse_ValidLine_WithoutLatency",
+      "Namespace": "LogWatcher.Benchmarks",
+      "Type": "LogParserBenchmarks",
+      "Method": "TryParse_ValidLine_WithoutLatency",
+      "Statistics": {
+        "N": 3,
+        "Min": 350.0,
+        "LowerFence": 310.0,
+        "Q1": 370.0,
+        "Median": 400.0,
+        "Mean": 408.0,
+        "Q3": 440.0,
+        "UpperFence": 510.0,
+        "Max": 475.0,
+        "InterquartileRange": 70.0,
+        "StandardError": 16.0,
+        "Variance": 3969.0,
+        "StandardDeviation": 63.0,
+        "Skewness": 0.1,
+        "Kurtosis": 1.5,
+        "ConfidenceInterval": {
+          "Lower": 376.0,
+          "Mean": 408.0,
+          "Upper": 440.0,
+          "Level": 12,
+          "Margin": 32.0
+        },
+        "Percentiles": {
+          "P0": 350.0,
+          "P25": 370.0,
+          "P50": 400.0,
+          "P67": 420.0,
+          "P80": 440.0,
+          "P85": 452.0,
+          "P90": 462.0,
+          "P95": 468.0,
+          "P100": 475.0
+        }
+      }
+    },
+    {
+      "FullName": "LogWatcher.Benchmarks.LogParserBenchmarks.TryParse_MalformedTimestamp",
+      "Namespace": "LogWatcher.Benchmarks",
+      "Type": "LogParserBenchmarks",
+      "Method": "TryParse_MalformedTimestamp",
+      "Statistics": {
+        "N": 3,
+        "Min": 85.0,
+        "LowerFence": 75.0,
+        "Q1": 90.0,
+        "Median": 100.0,
+        "Mean": 102.0,
+        "Q3": 113.0,
+        "UpperFence": 134.0,
+        "Max": 125.0,
+        "InterquartileRange": 23.0,
+        "StandardError": 5.0,
+        "Variance": 400.0,
+        "StandardDeviation": 20.0,
+        "Skewness": 0.1,
+        "Kurtosis": 1.5,
+        "ConfidenceInterval": {
+          "Lower": 92.0,
+          "Mean": 102.0,
+          "Upper": 112.0,
+          "Level": 12,
+          "Margin": 10.0
+        },
+        "Percentiles": {
+          "P0": 85.0,
+          "P25": 90.0,
+          "P50": 100.0,
+          "P67": 108.0,
+          "P80": 113.0,
+          "P85": 117.0,
+          "P90": 120.0,
+          "P95": 123.0,
+          "P100": 125.0
+        }
+      }
+    },
+    {
+      "FullName": "LogWatcher.Benchmarks.LogParserBenchmarks.TryParse_1000ValidLines",
+      "Namespace": "LogWatcher.Benchmarks",
+      "Type": "LogParserBenchmarks",
+      "Method": "TryParse_1000ValidLines",
+      "Statistics": {
+        "N": 3,
+        "Min": 470000.0,
+        "LowerFence": 430000.0,
+        "Q1": 485000.0,
+        "Median": 505000.0,
+        "Mean": 510000.0,
+        "Q3": 532000.0,
+        "UpperFence": 579000.0,
+        "Max": 560000.0,
+        "InterquartileRange": 47000.0,
+        "StandardError": 10000.0,
+        "Variance": 2025000000.0,
+        "StandardDeviation": 45000.0,
+        "Skewness": 0.1,
+        "Kurtosis": 1.5,
+        "ConfidenceInterval": {
+          "Lower": 490000.0,
+          "Mean": 510000.0,
+          "Upper": 530000.0,
+          "Level": 12,
+          "Margin": 20000.0
+        },
+        "Percentiles": {
+          "P0": 470000.0,
+          "P25": 485000.0,
+          "P50": 505000.0,
+          "P67": 518000.0,
+          "P80": 532000.0,
+          "P85": 540000.0,
+          "P90": 548000.0,
+          "P95": 554000.0,
+          "P100": 560000.0
+        }
+      }
+    }
+  ]
+}

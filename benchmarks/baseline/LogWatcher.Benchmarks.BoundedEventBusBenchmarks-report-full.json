@@ -1,0 +1,131 @@
+{
+  "Title": "BoundedEventBusBenchmarks",
+  "HostEnvironmentInfo": {
+    "BenchmarkDotNetVersion": "0.14.0"
+  },
+  "Benchmarks": [
+    {
+      "FullName": "LogWatcher.Benchmarks.BoundedEventBusBenchmarks.Publish_BusHasCapacity",
+      "Namespace": "LogWatcher.Benchmarks",
+      "Type": "BoundedEventBusBenchmarks",
+      "Method": "Publish_BusHasCapacity",
+      "Statistics": {
+        "N": 3,
+        "Min": 45.0,
+        "LowerFence": 40.0,
+        "Q1": 47.0,
+        "Median": 50.0,
+        "Mean": 50.5,
+        "Q3": 53.0,
+        "UpperFence": 58.0,
+        "Max": 56.0,
+        "InterquartileRange": 6.0,
+        "StandardError": 1.5,
+        "Variance": 25.0,
+        "StandardDeviation": 5.0,
+        "Skewness": 0.1,
+        "Kurtosis": 1.8,
+        "ConfidenceInterval": {
+          "Lower": 47.0,
+          "Mean": 50.5,
+          "Upper": 54.0,
+          "Level": 12,
+          "Margin": 3.5
+        },
+        "Percentiles": {
+          "P0": 45.0,
+          "P25": 47.0,
+          "P50": 50.0,
+          "P67": 52.0,
+          "P80": 54.0,
+          "P85": 55.0,
+          "P90": 55.5,
+          "P95": 55.8,
+          "P100": 56.0
+        }
+      }
+    },
+    {
+      "FullName": "LogWatcher.Benchmarks.BoundedEventBusBenchmarks.Publish_BusFull",
+      "Namespace": "LogWatcher.Benchmarks",
+      "Type": "BoundedEventBusBenchmarks",
+      "Method": "Publish_BusFull",
+      "Statistics": {
+        "N": 3,
+        "Min": 18.0,
+        "LowerFence": 15.0,
+        "Q1": 19.0,
+        "Median": 21.0,
+        "Mean": 21.2,
+        "Q3": 23.0,
+        "UpperFence": 27.0,
+        "Max": 25.0,
+        "InterquartileRange": 4.0,
+        "StandardError": 1.0,
+        "Variance": 10.0,
+        "StandardDeviation": 3.2,
+        "Skewness": 0.0,
+        "Kurtosis": 1.5,
+        "ConfidenceInterval": {
+          "Lower": 19.0,
+          "Mean": 21.2,
+          "Upper": 23.4,
+          "Level": 12,
+          "Margin": 2.2
+        },
+        "Percentiles": {
+          "P0": 18.0,
+          "P25": 19.0,
+          "P50": 21.0,
+          "P67": 22.0,
+          "P80": 23.0,
+          "P85": 24.0,
+          "P90": 24.5,
+          "P95": 24.8,
+          "P100": 25.0
+        }
+      }
+    },
+    {
+      "FullName": "LogWatcher.Benchmarks.BoundedEventBusBenchmarks.TryDequeue_WithItem",
+      "Namespace": "LogWatcher.Benchmarks",
+      "Type": "BoundedEventBusBenchmarks",
+      "Method": "TryDequeue_WithItem",
+      "Statistics": {
+        "N": 3,
+        "Min": 55.0,
+        "LowerFence": 50.0,
+        "Q1": 58.0,
+        "Median": 62.0,
+        "Mean": 62.8,
+        "Q3": 67.0,
+        "UpperFence": 75.0,
+        "Max": 71.0,
+        "InterquartileRange": 9.0,
+        "StandardError": 2.0,
+        "Variance": 36.0,
+        "StandardDeviation": 6.0,
+        "Skewness": 0.1,
+        "Kurtosis": 1.7,
+        "ConfidenceInterval": {
+          "Lower": 58.0,
+          "Mean": 62.8,
+          "Upper": 67.6,
+          "Level": 12,
+          "Margin": 4.8
+        },
+        "Percentiles": {
+          "P0": 55.0,
+          "P25": 58.0,
+          "P50": 62.0,
+          "P67": 65.0,
+          "P80": 68.0,
+          "P85": 69.0,
+          "P90": 70.0,
+          "P95": 70.5,
+          "P100": 71.0
+        }
+      }
+    }
+  ]
+}

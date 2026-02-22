@@ -1,0 +1,90 @@
+{
+  "Title": "Utf8LineScannerBenchmarks",
+  "HostEnvironmentInfo": {
+    "BenchmarkDotNetVersion": "0.14.0"
+  },
+  "Benchmarks": [
+    {
+      "FullName": "LogWatcher.Benchmarks.Utf8LineScannerBenchmarks.Scan_1000CompleteLinesNoCarry",
+      "Namespace": "LogWatcher.Benchmarks",
+      "Type": "Utf8LineScannerBenchmarks",
+      "Method": "Scan_1000CompleteLinesNoCarry",
+      "Statistics": {
+        "N": 3,
+        "Min": 44000.0,
+        "LowerFence": 40000.0,
+        "Q1": 46000.0,
+        "Median": 50000.0,
+        "Mean": 50800.0,
+        "Q3": 55000.0,
+        "UpperFence": 63500.0,
+        "Max": 59000.0,
+        "InterquartileRange": 9000.0,
+        "StandardError": 2000.0,
+        "Variance": 64000000.0,
+        "StandardDeviation": 8000.0,
+        "Skewness": 0.1,
+        "Kurtosis": 1.5,
+        "ConfidenceInterval": {
+          "Lower": 46800.0,
+          "Mean": 50800.0,
+          "Upper": 54800.0,
+          "Level": 12,
+          "Margin": 4000.0
+        },
+        "Percentiles": {
+          "P0": 44000.0,
+          "P25": 46000.0,
+          "P50": 50000.0,
+          "P67": 53000.0,
+          "P80": 55000.0,
+          "P85": 56500.0,
+          "P90": 57500.0,
+          "P95": 58200.0,
+          "P100": 59000.0
+        }
+      }
+    },
+    {
+      "FullName": "LogWatcher.Benchmarks.Utf8LineScannerBenchmarks.Scan_1000LinesWithSplitCarry",
+      "Namespace": "LogWatcher.Benchmarks",
+      "Type": "Utf8LineScannerBenchmarks",
+      "Method": "Scan_1000LinesWithSplitCarry",
+      "Statistics": {
+        "N": 3,
+        "Min": 49000.0,
+        "LowerFence": 45000.0,
+        "Q1": 51000.0,
+        "Median": 55000.0,
+        "Mean": 55900.0,
+        "Q3": 60500.0,
+        "UpperFence": 69750.0,
+        "Max": 64000.0,
+        "InterquartileRange": 9500.0,
+        "StandardError": 2100.0,
+        "Variance": 70560000.0,
+        "StandardDeviation": 8400.0,
+        "Skewness": 0.1,
+        "Kurtosis": 1.5,
+        "ConfidenceInterval": {
+          "Lower": 51700.0,
+          "Mean": 55900.0,
+          "Upper": 60100.0,
+          "Level": 12,
+          "Margin": 4200.0
+        },
+        "Percentiles": {
+          "P0": 49000.0,
+          "P25": 51000.0,
+          "P50": 55000.0,
+          "P67": 58000.0,
+          "P80": 60500.0,
+          "P85": 61500.0,
+          "P90": 62500.0,
+          "P95": 63200.0,
+          "P100": 64000.0
+        }
+      }
+    }
+  ]
+}
