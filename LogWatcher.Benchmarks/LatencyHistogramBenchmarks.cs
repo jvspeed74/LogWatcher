@@ -53,4 +53,12 @@ public class LatencyHistogramBenchmarks
     /// </summary>
     [Benchmark]
     public int? Percentile_P99() => _source.Percentile(0.99);
+
+    /// <summary>
+    /// Compute P50, P95, and P99 in sequence — mirrors the reporter's combined cost.
+    /// Provides the true regression baseline for the three-query reporting path.
+    /// </summary>
+    [Benchmark]
+    public (int? p50, int? p95, int? p99) Percentile_P50_P95_P99() =>
+        (_source.Percentile(0.50), _source.Percentile(0.95), _source.Percentile(0.99));
 }
