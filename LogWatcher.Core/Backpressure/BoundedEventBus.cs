@@ -9,8 +9,10 @@ namespace LogWatcher.Core.Backpressure
     /// <typeparam name="T">Type of events carried by the bus.</typeparam>
     public sealed class BoundedEventBus<T>
     {
-        // Channel provides lock-free producer/consumer coordination; DropWrite enforces
-        // drop-newest semantics (BP-002) without any explicit locking on the hot path.
+        // Channel provides lock-free producer/consumer coordination. FullMode=Wait is used
+        // so that TryWrite returns false when the channel is full; we treat that false return
+        // as a drop (BP-002). DropWrite would return true even for dropped items, making the
+        // return value useless for distinguishing published from dropped.
         private readonly Channel<T> _channel;
 
         // Separate stopped flag lets Publish distinguish a capacity drop from a post-Stop
@@ -91,22 +93,32 @@ namespace LogWatcher.Core.Backpressure
             using var cts = new CancellationTokenSource(Math.Max(0, timeoutMs));
             try
             {
-                // WaitToReadAsync completes synchronously when data is already present
-                // (zero allocation); otherwise it blocks the calling thread until data
-                // arrives or the token is cancelled (timeout). Returns false only when
-                // the channel is both completed and empty (BP-005 drain behaviour).
-                var waitTask = _channel.Reader.WaitToReadAsync(cts.Token);
-                bool hasData = waitTask.IsCompletedSuccessfully
-                    ? waitTask.GetAwaiter().GetResult()
-                    : waitTask.AsTask().GetAwaiter().GetResult();
-
-                if (!hasData)
+                // Loop because WaitToReadAsync returning true only guarantees data was present
+                // for *some* reader — another concurrent consumer may win the TryRead race.
+                // We keep waiting until we actually dequeue an item, the channel is completed
+                // and empty (BP-005), or the timeout is cancelled.
+                while (true)
                 {
-                    item = default;
-                    return false;
-                }
+                    // WaitToReadAsync completes synchronously when data is already present
+                    // (zero allocation); otherwise it blocks the calling thread until data
+                    // arrives or the token is cancelled (timeout). Returns false only when
+                    // the channel is both completed and empty (BP-005 drain behaviour).
+                    var waitTask = _channel.Reader.WaitToReadAsync(cts.Token);
+                    bool hasData = waitTask.IsCompletedSuccessfully
+                        ? waitTask.GetAwaiter().GetResult()
+                        : waitTask.AsTask().GetAwaiter().GetResult();
 
-                return _channel.Reader.TryRead(out item);
+                    if (!hasData)
+                    {
+                        item = default;
+                        return false;
+                    }
+
+                    if (_channel.Reader.TryRead(out item))
+                        return true;
+
+                    // Another consumer raced us and won; loop and wait again.
+                }
             }
             catch (OperationCanceledException)
             {
