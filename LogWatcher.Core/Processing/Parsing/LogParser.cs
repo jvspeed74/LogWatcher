@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Text;
 
 namespace LogWatcher.Core.Processing.Parsing
@@ -85,31 +86,10 @@ namespace LogWatcher.Core.Processing.Parsing
             if (idx >= 0)
             {
                 int valueStart = idx + LatencyPrefix.Length;
-                if (valueStart < line.Length)
+                if (valueStart < line.Length &&
+                    Utf8Parser.TryParse(line.Slice(valueStart), out int latencyValue, out _))
                 {
-                    var valSpan = line.Slice(valueStart);
-                    int i = 0;
-                    long acc = 0;
-                    bool any = false;
-                    while (i < valSpan.Length)
-                    {
-                        byte b = valSpan[i];
-                        if (b < (byte)'0' || b > (byte)'9') break;
-                        any = true;
-                        acc = acc * 10 + (b - (byte)'0');
-                        if (acc > int.MaxValue)
-                        {
-                            any = false;
-                            break;
-                        }
-
-                        i++;
-                    }
-
-                    if (any && i > 0)
-                    {
-                        latency = (int)acc;
-                    }
+                    latency = latencyValue;
                 }
             }
 
@@ -216,23 +196,17 @@ namespace LogWatcher.Core.Processing.Parsing
         private static bool TryParseDigits2(ReadOnlySpan<byte> span, int pos, out int value)
         {
             value = 0;
-            if (pos + 2 > span.Length) return false;
-            byte b0 = span[pos], b1 = span[pos + 1];
-            if (b0 < (byte)'0' || b0 > (byte)'9' || b1 < (byte)'0' || b1 > (byte)'9') return false;
-            value = (b0 - '0') * 10 + (b1 - '0');
-            return true;
+            return pos + 2 <= span.Length
+                && Utf8Parser.TryParse(span.Slice(pos, 2), out value, out int consumed)
+                && consumed == 2;
         }
 
         private static bool TryParseDigits4(ReadOnlySpan<byte> span, int pos, out int value)
         {
             value = 0;
-            if (pos + 4 > span.Length) return false;
-            byte b0 = span[pos], b1 = span[pos + 1], b2 = span[pos + 2], b3 = span[pos + 3];
-            if (b0 < (byte)'0' || b0 > (byte)'9' || b1 < (byte)'0' || b1 > (byte)'9' ||
-                b2 < (byte)'0' || b2 > (byte)'9' || b3 < (byte)'0' || b3 > (byte)'9')
-                return false;
-            value = (b0 - '0') * 1000 + (b1 - '0') * 100 + (b2 - '0') * 10 + (b3 - '0');
-            return true;
+            return pos + 4 <= span.Length
+                && Utf8Parser.TryParse(span.Slice(pos, 4), out value, out int consumed)
+                && consumed == 4;
         }
 
         private static LogLevel ParseLevel(ReadOnlySpan<byte> span)
