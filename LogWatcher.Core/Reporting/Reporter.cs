@@ -107,39 +107,22 @@ namespace LogWatcher.Core.Reporting
 
                 // Swap phase
                 foreach (var w in _workers) w.RequestSwap();
-                // wait for acks with configured timeout — run waits in parallel so one slow worker doesn't consume full timeout for all
+                // Wait for acks in parallel so one slow worker doesn't consume the full timeout for all.
+                // Parallel.ForEach is justified here: workers are independent and sequential waits would
+                // accumulate per-worker timeouts, causing unbounded delay under a slow/stuck worker.
                 using var cts = new CancellationTokenSource(_ackTimeout);
-                try
+                int acked = 0;
+                Parallel.ForEach(_workers, w =>
                 {
-                    var tasks = _workers.Select((w, idx) => Task.Run(() =>
+                    try
                     {
-                        try
-                        {
-                            w.WaitForSwapAck(cts.Token);
-                            return idx; // acked index
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            return -1; // not acked
-                        }
-                    })).ToArray();
-
-                    // Wait for all tasks to complete within the ack timeout
-                    Task.WaitAll(tasks, _ackTimeout);
-
-                    // collect acknowledgements
-                    var ackedIndices = tasks.Where(t => t.IsCompleted && t.Result >= 0).Select(t => t.Result).ToArray();
-                    int acked = ackedIndices.Length;
-                    if (acked != _workers.Length)
-                    {
-                        Console.Error.WriteLine($"Reporter: swap wait timed out (acked={acked} of {_workers.Length}); ackedIndices=[{string.Join(',', ackedIndices)}]");
+                        w.WaitForSwapAck(cts.Token);
+                        Interlocked.Increment(ref acked);
                     }
-                }
-                catch (Exception ex) when (ex is AggregateException || ex is OperationCanceledException)
-                {
-                    // timeout or task exception; proceed with what we have
-                    Console.Error.WriteLine("Reporter: swap wait timed out");
-                }
+                    catch (OperationCanceledException) { }
+                });
+                if (acked != _workers.Length)
+                    Console.Error.WriteLine($"Reporter: swap wait timed out (acked={acked} of {_workers.Length})");
 
                 // Merge/Frame build
                 var frame = BuildSnapshotAndFrame();
