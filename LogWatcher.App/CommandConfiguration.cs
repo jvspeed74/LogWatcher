@@ -1,6 +1,10 @@
 using System.CommandLine;
 using System.CommandLine.Parsing;
 
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.App;
 
 /// <summary>
@@ -145,20 +149,23 @@ public static class CommandConfiguration
             var reportInterval = parseResult.GetValue(reportIntervalOpt);
             var topK = parseResult.GetValue(topKOpt);
 
-            // All validation has already been performed by System.CommandLine validators
-            // Convert relative paths to absolute paths (matching the original CliConfig behavior)
             var absoluteWatchPath = Path.GetFullPath(watchPath);
+            var options = new LogWatcherOptions(absoluteWatchPath, workers, queueCapacity, reportInterval, topK);
 
-            // Delegate to ApplicationHost
-            // ApplicationHost.Run() has a try/finally block that ensures ALL cleanup happens:
-            //   - Stops all components (watcher, coordinator, reporter)
-            //   - Disposes resources
-            //   - Returns exit code only AFTER finally block completes
-            var exitCode = ApplicationHost.Run(absoluteWatchPath, workers, queueCapacity, reportInterval, topK);
-
-            // At this point, ALL cleanup is complete (ApplicationHost.Run's finally block has executed)
-            // It's now safe to exit with the appropriate code
-            Environment.Exit(exitCode);
+            Host.CreateDefaultBuilder()
+                .ConfigureLogging(logging =>
+                {
+                    // Suppress noisy Microsoft.Hosting.Lifetime messages
+                    logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Warning);
+                    logging.AddFilter("Microsoft", LogLevel.Warning);
+                })
+                .ConfigureServices(services =>
+                {
+                    services.AddSingleton(options);
+                    services.AddHostedService<LogWatcherService>();
+                })
+                .Build()
+                .Run();
         });
 
         return rootCommand;
