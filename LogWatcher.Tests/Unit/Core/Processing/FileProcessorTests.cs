@@ -53,7 +53,6 @@ public class FileProcessorTests : IDisposable
         }
     }
 
-    // TODO: map to invariant
     [Fact]
     public void ProcessOnce_WithAppendedContent_ReadsOnlyNewBytes()
     {

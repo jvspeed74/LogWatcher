@@ -8,7 +8,6 @@ namespace LogWatcher.Tests.Integration;
 
 public class ReporterTests
 {
-    // TODO: map to invariant
     [Fact]
     public void BuildSnapshotAndFrame_WithPopulatedWorkerBuffers_MergesAllMetrics()
     {
@@ -58,7 +57,6 @@ public class ReporterTests
         Assert.Equal(0, snap.BusDropped);
     }
 
-    // TODO: map to invariant
     [Fact]
     public void BuildSnapshotAndFrame_WithMessagesAndLatencies_ComputesTopKAndPercentiles()
     {

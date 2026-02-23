@@ -5,7 +5,6 @@ namespace LogWatcher.Tests.Unit.Core.Reporting;
 
 public class GlobalSnapshotTests
 {
-    // TODO: map to invariant
     [Fact]
     public void MergeFrom_WithWorkerBuffer_SumsAllMetrics()
     {
@@ -28,7 +27,6 @@ public class GlobalSnapshotTests
         Assert.Equal(3, snap.Histogram.Count);
     }
 
-    // TODO: map to invariant
     [Fact]
     public void FinalizeSnapshot_WithMessagesAndLatencies_ComputesTopKAndPercentiles()
     {

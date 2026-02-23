@@ -45,7 +45,6 @@ public class LogParserTests
         Assert.False(LogParser.TryParse(line, out _));
     }
 
-    // TODO: map to invariant
     [Fact]
     public void TryParse_WithUnknownLevel_MapsToOther()
     {

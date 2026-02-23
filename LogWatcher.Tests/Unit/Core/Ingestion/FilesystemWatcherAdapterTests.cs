@@ -26,7 +26,6 @@ public class FilesystemWatcherAdapterTests : IDisposable
         }
     }
 
-    // TODO: map to invariant
     [Fact]
     public void Start_WhenLogFileCreated_PublishesEventToBus()
     {

@@ -184,7 +184,7 @@ public void Bus_NeverExceedsCapacity() { ... }
 - **Test structure**: Mirror source structure — `Unit/`, `Integration/`, `Stress/`.
 - **Test naming**: `MethodOrScenario_Condition_ExpectedBehavior` (PascalCase, underscores between parts).
 - **Determinism**: No timing-based assertions. No network. No dependency on installed software.
-- **Invariant tagging**: Apply `[Invariant("ID")]` from `docs/invariants.md` to all tests that protect a documented invariant.
+- **Invariant tagging**: Apply `[Invariant("ID")]` from `docs/invariants.md` to all tests that protect a documented invariant. An invariant is an architectural guarantee that crosses a component boundary or describes a system-wide safety property — not all correct behavior qualifies. Tests without `[Invariant]` are complete; the absence of a tag means the behavior is self-contained within one component and needs no cross-cutting documentation.
 - **Stress tests**: Live in `Stress/` and may use real threads; they must still terminate reliably without timing-based flakiness.
 - **Coverage check**: `InvariantCoverageTests.cs` enforces that every documented invariant in `docs/invariants.md` is covered by at least one `[Invariant("ID")]` test — do not break this.
 

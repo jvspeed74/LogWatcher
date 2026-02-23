@@ -20,6 +20,42 @@ correctness during code review.
 
 ---
 
+## Invariant Decision Table
+
+An invariant is an **architectural guarantee** — a property that crosses a component boundary or
+describes a system-wide safety rule that multiple components depend on. Correct behavior that is
+self-contained within one component is not an invariant; leave it untagged.
+
+**Step 1 — Disqualify.** If any row below matches, it is not an invariant. Leave the test untagged.
+
+"Caller" means the *next component in the dependency chain*, not the end user.
+
+| This behavior is… | Example |
+|---|---|
+| Self-contained within one component; no downstream component depends on it | TopK sort order, merge summation, message accumulation |
+| An internal implementation detail invisible to callers | Chunk size, buffer capacity, timeout values |
+| A quality-of-life or ergonomic concern | API shape, logging, configurability |
+| A performance target scoped to reporting or startup | Allocation during report formatting |
+| Visible in output but any correct alternative would be equally acceptable | Tie-breaking order, dequeue ordering, default sort stability |
+
+**Step 2 — Classify.** If none of the above matched, pick the type using the first row that applies.
+
+| If a violation would… | Type |
+|---|---|
+| Cause data loss, corruption, or a crash | `strict` |
+| Break an assumption both sides of a component boundary rely on | `contract` |
+| Degrade observable behavior but leave the system operational | `behavioral` |
+| Only occur under resource exhaustion or OS failure | `operational` |
+
+**Edge case note.** An edge case qualifies as an invariant only if the calling component makes a distinct
+decision based on the specific value returned (e.g., null vs. 0 changes a branch). If all values are
+treated uniformly by callers, the edge case is self-contained and does not qualify.
+
+**Allocation note.** Per-line or per-chunk heap allocation in the hot path is a `strict` invariant because it directly
+causes observable GC pressure and latency spikes. Allocation during reporting or startup is not an invariant.
+
+---
+
 ## Attribute Usage
 
 Tag tests with `[Invariant("ID")]` to declare which invariant a test protects.

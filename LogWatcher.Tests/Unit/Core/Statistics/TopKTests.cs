@@ -4,7 +4,6 @@ namespace LogWatcher.Tests.Unit.Core.Statistics;
 
 public class TopKTests
 {
-    // TODO: map to invariant
     [Fact]
     public void ComputeTopK_WhenDictionaryEmpty_ReturnsEmpty()
     {
@@ -12,7 +11,6 @@ public class TopKTests
         Assert.Empty(res);
     }
 
-    // TODO: map to invariant
     [Fact]
     public void ComputeTopK_WhenKExceedsCount_ReturnsAllItemsSorted()
     {
@@ -30,7 +28,6 @@ public class TopKTests
         Assert.Equal(("c", 1), res[2]);
     }
 
-    // TODO: map to invariant
     [Fact]
     public void ComputeTopK_WithEqualCounts_BreaksTiesByOrdinalAscending()
     {
@@ -48,7 +45,6 @@ public class TopKTests
         Assert.Equal("b", res[2].Key);
     }
 
-    // TODO: map to invariant
     [Fact]
     public void ComputeTopK_WithMixedCounts_ReturnsTopKByCountDescending()
     {
