@@ -1,8 +1,10 @@
+using LogWatcher.App;
 using LogWatcher.Core.Backpressure;
 using LogWatcher.Core.Coordination;
 using LogWatcher.Core.Ingestion;
 using LogWatcher.Core.Processing.Parsing;
 using LogWatcher.Core.Reporting;
+using LogWatcher.Tests.Helpers;
 
 namespace LogWatcher.Tests.Integration;
 
@@ -101,7 +103,7 @@ public class ReporterTests
         {
             var bus = new BoundedEventBus<FsEvent>(10);
             var workers = new[] { new WorkerStats() };
-            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(100));
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(100), consumers: [new ConsoleSnapshotConsumer()]);
             reporter.Start();
             Thread.Sleep(1500); // allow at least one interval report
             reporter.Stop();
@@ -131,7 +133,7 @@ public class ReporterTests
             var bus = new BoundedEventBus<FsEvent>(10);
             var workers = new[] { new WorkerStats() };
             // 1-second interval; we stop after 100 ms so the thread exits cleanly within the join timeout
-            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromSeconds(1), ackTimeout: TimeSpan.FromMilliseconds(100));
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromSeconds(1), ackTimeout: TimeSpan.FromMilliseconds(100), consumers: [new ConsoleSnapshotConsumer()]);
             reporter.Start();
             Thread.Sleep(100);
             reporter.Stop(); // must emit final report with elapsed=0.00 after loop exits
@@ -153,7 +155,6 @@ public class ReporterTests
     {
         // When a worker fails to acknowledge a swap within the timeout the reporter
         // must proceed with available data and log a warning — it must not crash or block.
-        using var errWriter = new StringWriter();
         using var outWriter = new StringWriter();
         var originalOut = Console.Out;
         Console.SetOut(outWriter);
@@ -164,16 +165,15 @@ public class ReporterTests
             // Worker never acknowledges swaps because it never calls AcknowledgeSwapIfRequested
             var workers = new[] { ws };
             // Extremely short ack timeout to force a timeout on every interval.
-            // errWriter is injected directly — avoids Console.Error race conditions across parallel tests.
-            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(1), errorOutput: errWriter);
+            var capturingLogger = new CapturingLogger<Reporter>();
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(1), logger: capturingLogger, consumers: [new ConsoleSnapshotConsumer()]);
             reporter.Start();
             Thread.Sleep(2500); // allow multiple fast intervals with forced ack timeouts
             reporter.Stop();
 
-            var errOutput = errWriter.ToString();
             var stdOutput = outWriter.ToString();
             // A warning must be logged when the ack times out
-            Assert.Contains("timed out", errOutput, StringComparison.OrdinalIgnoreCase);
+            Assert.True(capturingLogger.HasWarning("timed out"), "Expected a warning log about swap timeout");
             // The reporter must still produce output despite the timeout
             Assert.Contains("[REPORT]", stdOutput);
         }
@@ -229,7 +229,7 @@ public class ReporterTests
         {
             var bus = new BoundedEventBus<FsEvent>(10);
             var workers = new[] { new WorkerStats() };
-            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(50));
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(50), consumers: [new ConsoleSnapshotConsumer()]);
 
             // First cycle
             reporter.Start();

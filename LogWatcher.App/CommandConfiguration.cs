@@ -1,6 +1,8 @@
 using System.CommandLine;
 using System.CommandLine.Parsing;
 
+using LogWatcher.Core.Reporting;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -162,6 +164,7 @@ public static class CommandConfiguration
                 .ConfigureServices(services =>
                 {
                     services.AddSingleton(options);
+                    services.AddSingleton<ISnapshotConsumer, ConsoleSnapshotConsumer>();
                     services.AddHostedService<LogWatcherService>();
                 })
                 .Build()

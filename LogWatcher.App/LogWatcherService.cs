@@ -16,11 +16,13 @@ namespace LogWatcher.App;
 public sealed class LogWatcherService : BackgroundService
 {
     private readonly LogWatcherOptions _options;
+    private readonly IReadOnlyList<ISnapshotConsumer> _consumers;
     private readonly ILogger<LogWatcherService> _logger;
 
-    public LogWatcherService(LogWatcherOptions options, ILogger<LogWatcherService> logger)
+    public LogWatcherService(LogWatcherOptions options, IEnumerable<ISnapshotConsumer> consumers, ILogger<LogWatcherService> logger)
     {
         _options = options;
+        _consumers = consumers.ToList();
         _logger = logger;
     }
 
@@ -47,7 +49,7 @@ public sealed class LogWatcherService : BackgroundService
             coordinator = new ProcessingCoordinator(bus, registry, processor, workerStats,
                 workerCount: _options.Workers);
             reporter = new Reporter(workerStats, bus, _options.TopK,
-                TimeSpan.FromSeconds(_options.ReportIntervalSeconds));
+                TimeSpan.FromSeconds(_options.ReportIntervalSeconds), consumers: _consumers);
             watcher = new FilesystemWatcherAdapter(_options.WatchPath, bus);
 
             // Start components in order
