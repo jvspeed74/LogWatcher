@@ -255,4 +255,5 @@ public class ReporterTests
             Console.SetOut(originalOut);
         }
     }
+
 }

@@ -30,7 +30,7 @@ Run whenever you make an intentional performance improvement (not after noise):
 
 ```bash
 # Run benchmarks locally with the same short job used in CI
-dotnet run --project LogWatcher.Benchmarks -c Release -- --job short --filter * --exporters json github
+dotnet run --project LogWatcher.Benchmarks -c Release -- --job short --filter * --exporters fulljson github
 
 # Copy the new JSONs over the old baseline
 Copy-Item BenchmarkDotNet.Artifacts\results\*-report-full.json benchmarks\baseline\
