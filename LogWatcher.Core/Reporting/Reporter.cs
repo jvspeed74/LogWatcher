@@ -37,7 +37,7 @@ namespace LogWatcher.Core.Reporting
         /// <param name="workers">Array of per-worker <see cref="WorkerStats"/> instances; used to request swaps and read inactive buffers.</param>
         /// <param name="bus">Event bus whose metrics (published/dropped/depth) are attached to the snapshot.</param>
         /// <param name="topK">Number of top messages to compute in each report; clamped to at least 1.</param>
-        /// <param name="intervalSeconds">Report interval in seconds; clamped to at least 1.</param>
+        /// <param name="interval">Report interval; clamped to at least 1 second.</param>
         /// <param name="ackTimeout">Timeout to wait for worker swap acknowledgements. If null, defaults to max(1s, interval * 1.5).</param>
         /// <param name="errorOutput">TextWriter used for diagnostic warnings. If null, defaults to <see cref="Console.Error"/>.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="workers"/> or <paramref name="bus"/> is null.</exception>
@@ -72,7 +72,7 @@ namespace LogWatcher.Core.Reporting
             _lastGen2 = GC.CollectionCount(2);
 
             Volatile.Write(ref _stopping, false);
-            _timer = new PeriodicTimer(TimeSpan.FromSeconds(_intervalSeconds));
+            _timer = new PeriodicTimer(_interval);
             _thread = new Thread(ReporterLoop) { IsBackground = true, Name = "reporter" };
             _thread.Start();
         }
@@ -129,7 +129,7 @@ namespace LogWatcher.Core.Reporting
                     catch (OperationCanceledException) { }
                 });
                 if (acked != _workers.Length)
-                    Console.Error.WriteLine($"Reporter: swap wait timed out (acked={acked} of {_workers.Length})");
+                    _errorOutput.WriteLine($"Reporter: swap wait timed out (acked={acked} of {_workers.Length})");
 
                 // Merge/Frame build
                 var frame = BuildSnapshotAndFrame();
