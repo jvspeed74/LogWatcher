@@ -19,7 +19,7 @@ public class HostLifecycleTests
         var processor = new FileProcessor();
         var workerStats = new[] { new WorkerStats() };
         var coordinator = new ProcessingCoordinator(bus, registry, processor, workerStats, 1, 50);
-        var reporter = new Reporter(workerStats, bus, 1, 60, TimeSpan.FromMilliseconds(100));
+        var reporter = new Reporter(workerStats, bus, 1, interval: TimeSpan.FromSeconds(60), ackTimeout: TimeSpan.FromMilliseconds(100));
         using var watcher = new FilesystemWatcherAdapter(Path.GetTempPath(), bus);
 
         coordinator.Start();
@@ -48,7 +48,7 @@ public class HostLifecycleTests
         var processor = new FileProcessor();
         var workerStats = new[] { new WorkerStats() };
         var coordinator = new ProcessingCoordinator(bus, registry, processor, workerStats, 1, 50);
-        var reporter = new Reporter(workerStats, bus, 1, 60, TimeSpan.FromMilliseconds(100));
+        var reporter = new Reporter(workerStats, bus, 1, interval: TimeSpan.FromSeconds(60), ackTimeout: TimeSpan.FromMilliseconds(100));
 
         coordinator.Start();
         reporter.Start();
@@ -78,7 +78,7 @@ public class HostLifecycleTests
         var processor = new FileProcessor();
         var workerStats = new[] { new WorkerStats() };
         var coordinator = new ProcessingCoordinator(bus, registry, processor, workerStats, 1, 50);
-        var reporter = new Reporter(workerStats, bus, 1, 60, TimeSpan.FromMilliseconds(100));
+        var reporter = new Reporter(workerStats, bus, 1, interval: TimeSpan.FromSeconds(60), ackTimeout: TimeSpan.FromMilliseconds(100));
         using var watcher = new FilesystemWatcherAdapter(Path.GetTempPath(), bus);
 
         // Start in documented order: coordinator → reporter → watcher

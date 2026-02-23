@@ -15,8 +15,9 @@ namespace LogWatcher.Core.Reporting
         private readonly WorkerStats[] _workers;
         private readonly BoundedEventBus<FsEvent> _bus;
         private readonly int _topK;
-        private readonly int _intervalSeconds;
+        private readonly TimeSpan _interval;
         private readonly TimeSpan _ackTimeout;
+        private readonly TextWriter _errorOutput;
         private Thread? _thread;
         private bool _stopping;
         private PeriodicTimer? _timer;
@@ -37,16 +38,18 @@ namespace LogWatcher.Core.Reporting
         /// <param name="bus">Event bus whose metrics (published/dropped/depth) are attached to the snapshot.</param>
         /// <param name="topK">Number of top messages to compute in each report; clamped to at least 1.</param>
         /// <param name="intervalSeconds">Report interval in seconds; clamped to at least 1.</param>
-        /// <param name="ackTimeout">Timeout to wait for worker swap acknowledgements. If null, defaults to max(1s, intervalSeconds).</param>
+        /// <param name="ackTimeout">Timeout to wait for worker swap acknowledgements. If null, defaults to max(1s, interval * 1.5).</param>
+        /// <param name="errorOutput">TextWriter used for diagnostic warnings. If null, defaults to <see cref="Console.Error"/>.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="workers"/> or <paramref name="bus"/> is null.</exception>
-        public Reporter(WorkerStats[] workers, BoundedEventBus<FsEvent> bus, int topK = 10, int intervalSeconds = 2, TimeSpan? ackTimeout = null)
+        public Reporter(WorkerStats[] workers, BoundedEventBus<FsEvent> bus, int topK = 10, TimeSpan interval = default, TimeSpan? ackTimeout = null, TextWriter? errorOutput = null)
         {
             _workers = workers ?? throw new ArgumentNullException(nameof(workers));
             _bus = bus ?? throw new ArgumentNullException(nameof(bus));
             _topK = Math.Max(1, topK);
-            _intervalSeconds = Math.Max(1, intervalSeconds);
+            _interval = interval == default ? TimeSpan.FromSeconds(2) : interval;
             // default ack timeout is 1.5x the reporting interval to tolerate busy workers
-            _ackTimeout = ackTimeout ?? TimeSpan.FromSeconds(Math.Max(1, _intervalSeconds) * 1.5);
+            _ackTimeout = ackTimeout ?? TimeSpan.FromSeconds(Math.Max(1, _interval.TotalSeconds) * 1.5);
+            _errorOutput = errorOutput ?? Console.Error;
             _snapshot = new GlobalSnapshot(_topK);
 
             // initialize baselines to zero here; real baseline captured when Start() is called so tests can call BuildSnapshotAndFrame without timing side-effects
@@ -87,7 +90,7 @@ namespace LogWatcher.Core.Reporting
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Reporter.Stop join error: {ex}");
+                _errorOutput.WriteLine($"Reporter.Stop join error: {ex}");
             }
         }
 
@@ -143,7 +146,7 @@ namespace LogWatcher.Core.Reporting
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Reporter final report error: {ex}");
+                _errorOutput.WriteLine($"Reporter final report error: {ex}");
             }
         }
 

@@ -46,7 +46,7 @@ public static class ApplicationHost
             }
             coordinator = new ProcessingCoordinator(bus, registry, processor, workerStats,
                 workerCount: workers);
-            reporter = new Reporter(workerStats, bus, topK, reportIntervalSeconds);
+            reporter = new Reporter(workerStats, bus, topK, TimeSpan.FromSeconds(reportIntervalSeconds));
             watcher = new FilesystemWatcherAdapter(watchPath, bus);
             // Register shutdown handlers
             Console.CancelKeyPress += (_, e) =>
