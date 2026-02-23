@@ -1,15 +1,23 @@
 using System.Collections.Concurrent;
 
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.Core.FileManagement;
 
 /// <summary>
 /// Registry of <see cref="FileState"/> objects keyed by file path. Supports concurrent access.
 /// </summary>
-public sealed class FileStateRegistry
+public sealed partial class FileStateRegistry
 {
-    // TODO: Consider adding a cleanup mechanism for orphaned FileState entries when files are no longer being watched
     private readonly ConcurrentDictionary<string, FileState> _states = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, int> _epochs = new(StringComparer.Ordinal);
+    private readonly ILogger<FileStateRegistry>? _logger;
+
+    /// <param name="logger">Optional logger for carry buffer cleanup failures.</param>
+    public FileStateRegistry(ILogger<FileStateRegistry>? logger = null)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// Gets an existing <see cref="FileState"/> for <paramref name="path"/> or creates a new one with a generation based on the current epoch.
@@ -56,10 +64,9 @@ public sealed class FileStateRegistry
             {
                 removed.ClearCarry();
             }
-            catch
+            catch (Exception ex)
             {
-                // swallow any errors from clearing fields
-                // TODO: Add structured logging for carry buffer cleanup failures (path, exception details)
+                if (_logger != null) LogCarryCleanupFailure(_logger, path, ex);
             }
         }
 
@@ -76,4 +83,7 @@ public sealed class FileStateRegistry
         _epochs.TryGetValue(path, out var e);
         return e;
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Exception during carry buffer cleanup for path={Path}")]
+    private static partial void LogCarryCleanupFailure(ILogger logger, string path, Exception exception);
 }

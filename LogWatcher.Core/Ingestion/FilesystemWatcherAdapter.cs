@@ -1,14 +1,17 @@
 using LogWatcher.Core.Backpressure;
 
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.Core.Ingestion
 {
     /// <summary>
     /// Adapter that wraps <see cref="FileSystemWatcher"/> and publishes <see cref="FsEvent"/> events to a <see cref="BoundedEventBus{T}"/>.
     /// </summary>
-    public sealed class FilesystemWatcherAdapter : IDisposable
+    public sealed partial class FilesystemWatcherAdapter : IDisposable
     {
         private readonly BoundedEventBus<FsEvent> _bus;
         private readonly Func<string, bool> _isProcessable;
+        private readonly ILogger<FilesystemWatcherAdapter>? _logger;
         private FileSystemWatcher? _watcher;
         private long _errorCount;
 
@@ -19,22 +22,22 @@ namespace LogWatcher.Core.Ingestion
         /// <param name="path">Directory path to watch.</param>
         /// <param name="bus">Event bus to publish discovered events to.</param>
         /// <param name="isProcessable">Optional predicate to filter which file paths are considered processable.</param>
+        /// <param name="logger">Optional logger for FSW errors and publish exceptions.</param>
         public FilesystemWatcherAdapter(string path, BoundedEventBus<FsEvent> bus,
-            Func<string, bool>? isProcessable = null)
+            Func<string, bool>? isProcessable = null, ILogger<FilesystemWatcherAdapter>? logger = null)
         {
             ArgumentNullException.ThrowIfNull(path);
             ArgumentNullException.ThrowIfNull(bus);
             _bus = bus;
             _isProcessable = isProcessable ?? DefaultIsProcessable;
+            _logger = logger;
 
-            // TODO: Consider validating that the path exists and is a directory before creating the watcher
             // Pre-create watcher but do not enable until Start()
             _watcher = new FileSystemWatcher(path)
             {
                 IncludeSubdirectories = false,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
                 Filter = "*.*",
-                // TODO: Make internal buffer size configurable to handle high-volume file change scenarios
                 InternalBufferSize = 64 * 1024
             };
 
@@ -101,8 +104,9 @@ namespace LogWatcher.Core.Ingestion
         private void OnError(object sender, ErrorEventArgs e)
         {
             Interlocked.Increment(ref _errorCount);
-            // TODO: Add structured logging for FileSystemWatcher errors to diagnose buffer overflow issues
-            // do not rethrow; just record
+            // Pre-extract exception so the local reference (not the method call) is passed to LogFswError.
+            var ex = e.GetException();
+            if (_logger != null) LogFswError(_logger, ex);
         }
 
         private void PublishEvent(FsEventKind kind, string path, string? oldPath)
@@ -113,10 +117,9 @@ namespace LogWatcher.Core.Ingestion
                 var ev = new FsEvent(kind, path, oldPath, DateTimeOffset.UtcNow, processable);
                 _bus.Publish(ev);
             }
-            catch
+            catch (Exception ex)
             {
-                // Swallow any exceptions to keep handlers lightweight
-                // TODO: Add structured logging for exceptions in event publishing (path, kind, exception details)
+                if (_logger != null) LogPublishException(_logger, kind, path, ex);
             }
         }
 
@@ -137,5 +140,11 @@ namespace LogWatcher.Core.Ingestion
                 _watcher = null;
             }
         }
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "FileSystemWatcher error")]
+        private static partial void LogFswError(ILogger logger, Exception exception);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Exception publishing event kind={Kind} path={Path}")]
+        private static partial void LogPublishException(ILogger logger, FsEventKind kind, string path, Exception exception);
     }
 }

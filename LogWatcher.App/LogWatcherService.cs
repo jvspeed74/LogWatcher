@@ -3,6 +3,7 @@ using LogWatcher.Core.Coordination;
 using LogWatcher.Core.FileManagement;
 using LogWatcher.Core.Ingestion;
 using LogWatcher.Core.Processing;
+using LogWatcher.Core.Processing.Tailing;
 using LogWatcher.Core.Reporting;
 
 using Microsoft.Extensions.Hosting;
@@ -17,12 +18,14 @@ public sealed class LogWatcherService : BackgroundService
 {
     private readonly LogWatcherOptions _options;
     private readonly IReadOnlyList<ISnapshotConsumer> _consumers;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<LogWatcherService> _logger;
 
-    public LogWatcherService(LogWatcherOptions options, IEnumerable<ISnapshotConsumer> consumers, ILogger<LogWatcherService> logger)
+    public LogWatcherService(LogWatcherOptions options, IEnumerable<ISnapshotConsumer> consumers, ILoggerFactory loggerFactory, ILogger<LogWatcherService> logger)
     {
         _options = options;
         _consumers = consumers.ToList();
+        _loggerFactory = loggerFactory;
         _logger = logger;
     }
 
@@ -39,18 +42,19 @@ public sealed class LogWatcherService : BackgroundService
         try
         {
             // Construct components
-            bus = new BoundedEventBus<FsEvent>(_options.QueueCapacity);
-            registry = new FileStateRegistry();
-            processor = new FileProcessor();
+            bus = new BoundedEventBus<FsEvent>(_options.QueueCapacity, _loggerFactory.CreateLogger<BoundedEventBus<FsEvent>>());
+            registry = new FileStateRegistry(_loggerFactory.CreateLogger<FileStateRegistry>());
+            var tailer = new FileTailer(_loggerFactory.CreateLogger<FileTailer>());
+            processor = new FileProcessor(tailer);
             workerStats = new WorkerStats[_options.Workers];
             for (int i = 0; i < workerStats.Length; i++)
                 workerStats[i] = new WorkerStats();
 
             coordinator = new ProcessingCoordinator(bus, registry, processor, workerStats,
-                workerCount: _options.Workers);
+                workerCount: _options.Workers, logger: _loggerFactory.CreateLogger<ProcessingCoordinator>());
             reporter = new Reporter(workerStats, bus, _options.TopK,
-                TimeSpan.FromSeconds(_options.ReportIntervalSeconds), consumers: _consumers);
-            watcher = new FilesystemWatcherAdapter(_options.WatchPath, bus);
+                TimeSpan.FromSeconds(_options.ReportIntervalSeconds), logger: _loggerFactory.CreateLogger<Reporter>(), consumers: _consumers);
+            watcher = new FilesystemWatcherAdapter(_options.WatchPath, bus, logger: _loggerFactory.CreateLogger<FilesystemWatcherAdapter>());
 
             // Start components in order
             coordinator.Start();

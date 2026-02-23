@@ -4,12 +4,14 @@ using LogWatcher.Core.FileManagement;
 using LogWatcher.Core.Ingestion;
 using LogWatcher.Core.Statistics;
 
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.Core.Processing
 {
     /// <summary>
     /// Coordinates worker threads that dequeue filesystem events and dispatch processing work.
     /// </summary>
-    public sealed class ProcessingCoordinator
+    public sealed partial class ProcessingCoordinator
     {
         private readonly BoundedEventBus<FsEvent> _bus;
         private readonly FileStateRegistry _registry;
@@ -17,6 +19,7 @@ namespace LogWatcher.Core.Processing
         private readonly WorkerStats[] _workerStats;
         private readonly Thread[] _threads;
         private readonly int _dequeueTimeoutMs;
+        private readonly ILogger<ProcessingCoordinator>? _logger;
 
         private bool _stopping;
 
@@ -29,13 +32,16 @@ namespace LogWatcher.Core.Processing
         /// <param name="workerStats">Preallocated per-worker stats containers (length determines worker count).</param>
         /// <param name="workerCount">Requested worker count; the actual count will be at least 1.</param>
         /// <param name="dequeueTimeoutMs">Timeout in milliseconds for bus dequeue operations; clamped to a minimum of 10ms.</param>
+        /// <param name="logger">Optional logger for join timeouts and debug events.</param>
         public ProcessingCoordinator(BoundedEventBus<FsEvent> bus, FileStateRegistry registry, IFileProcessor processor,
-            WorkerStats[] workerStats, int workerCount = 4, int dequeueTimeoutMs = 200)
+            WorkerStats[] workerStats, int workerCount = 4, int dequeueTimeoutMs = 200,
+            ILogger<ProcessingCoordinator>? logger = null)
         {
             _bus = bus ?? throw new ArgumentNullException(nameof(bus));
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
             _processor = processor ?? throw new ArgumentNullException(nameof(processor));
             _workerStats = workerStats ?? throw new ArgumentNullException(nameof(workerStats));
+            _logger = logger;
 
             int wc = Math.Max(1, workerCount);
             _dequeueTimeoutMs = Math.Max(10, dequeueTimeoutMs);
@@ -70,10 +76,14 @@ namespace LogWatcher.Core.Processing
             _bus.Stop();
             try
             {
-                // TODO: Consider making join timeout configurable for different workloads
-                foreach (var t in _threads)
+                for (int i = 0; i < _threads.Length; i++)
                 {
-                    if (!t.Join(2000)) t.Interrupt();
+                    var t = _threads[i];
+                    if (!t.Join(2000))
+                    {
+                        if (_logger != null) LogWorkerJoinTimeout(_logger, i);
+                        t.Interrupt();
+                    }
                 }
             }
             catch
@@ -129,6 +139,7 @@ namespace LogWatcher.Core.Processing
             {
                 state.MarkDirtyIfAllowed();
                 buffer.CoalescedDueToBusyGate++;
+                if (_logger != null) LogGateCoalesced(_logger, path);
                 return;
             }
 
@@ -195,6 +206,7 @@ namespace LogWatcher.Core.Processing
             {
                 state.MarkDeletePending();
                 stats.DeletePendingSetCount++;
+                if (_logger != null) LogDeletePendingSet(_logger, path);
                 return;
             }
 
@@ -209,5 +221,14 @@ namespace LogWatcher.Core.Processing
                 Monitor.Exit(state.Gate);
             }
         }
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Worker thread {WorkerIndex} failed to join within timeout")]
+        private static partial void LogWorkerJoinTimeout(ILogger logger, int workerIndex);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Gate busy, event coalesced path={Path}")]
+        private static partial void LogGateCoalesced(ILogger logger, string path);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Delete pending set, gate busy path={Path}")]
+        private static partial void LogDeletePendingSet(ILogger logger, string path);
     }
 }

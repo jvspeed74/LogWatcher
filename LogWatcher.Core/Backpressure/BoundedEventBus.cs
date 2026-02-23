@@ -1,19 +1,22 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.Core.Backpressure
 {
     /// <summary>
     /// Thread-safe bounded FIFO event bus with drop-newest semantics when full.
     /// </summary>
     /// <typeparam name="T">Type of events carried by the bus.</typeparam>
-    public sealed class BoundedEventBus<T>
+    public sealed partial class BoundedEventBus<T>
     {
         // Channel provides lock-free producer/consumer coordination. FullMode=Wait is used
         // so that TryWrite returns false when the channel is full; we treat that false return
         // as a drop (BP-002). DropWrite would return true even for dropped items, making the
         // return value useless for distinguishing published from dropped.
         private readonly Channel<T> _channel;
+        private readonly ILogger<BoundedEventBus<T>>? _logger;
 
         // Separate stopped flag lets Publish distinguish a capacity drop from a post-Stop
         // return so that _dropped is not incremented for post-Stop publish calls.
@@ -26,10 +29,12 @@ namespace LogWatcher.Core.Backpressure
         /// Creates a new bounded event bus with the provided capacity.
         /// </summary>
         /// <param name="capacity">Maximum number of items the bus will hold; must be &gt; 0.</param>
+        /// <param name="logger">Optional logger for dropped event warnings.</param>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="capacity"/> is not positive.</exception>
-        public BoundedEventBus(int capacity)
+        public BoundedEventBus(int capacity, ILogger<BoundedEventBus<T>>? logger = null)
         {
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
+            _logger = logger;
             _channel = Channel.CreateBounded<T>(new BoundedChannelOptions(capacity)
             {
                 // Wait mode: TryWrite returns false when full (no blocking — we never call
@@ -65,6 +70,7 @@ namespace LogWatcher.Core.Backpressure
             // capacity drop. If Stop() raced between the initial check and TryWrite, we may count
             // at most one spurious drop at shutdown — acceptable for a metrics counter.
             Interlocked.Increment(ref _dropped);
+            if (_logger != null) LogEventDropped(_logger);
             return false;
         }
 
@@ -155,5 +161,8 @@ namespace LogWatcher.Core.Backpressure
         /// This value is snapshot-based and may change immediately after being read.
         /// </summary>
         public int Depth => _channel.Reader.Count;
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Bus at capacity; event dropped")]
+        private static partial void LogEventDropped(ILogger logger);
     }
 }
