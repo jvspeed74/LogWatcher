@@ -10,7 +10,7 @@ namespace LogWatcher.Core.Reporting
     /// Periodically requests worker stats swaps, merges per-worker buffers into a <see cref="GlobalSnapshot"/>, and prints a report.
     /// The reporter runs on a background thread when <see cref="Start"/> is called and stops after <see cref="Stop"/> is invoked.
     /// </summary>
-    public sealed class Reporter
+    public sealed class Reporter : IDisposable
     {
         private readonly WorkerStats[] _workers;
         private readonly BoundedEventBus<FsEvent> _bus;
@@ -91,6 +91,9 @@ namespace LogWatcher.Core.Reporting
             }
         }
 
+        /// <inheritdoc/>
+        public void Dispose() => Stop();
+
         private void ReporterLoop()
         {
             var sw = Stopwatch.StartNew();
@@ -116,6 +119,7 @@ namespace LogWatcher.Core.Reporting
                 {
                     try
                     {
+                        // ReSharper disable once AccessToDisposedClosure
                         w.WaitForSwapAck(cts.Token);
                         Interlocked.Increment(ref acked);
                     }
