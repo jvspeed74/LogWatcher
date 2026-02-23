@@ -251,14 +251,13 @@ sequenceDiagram
 stateDiagram-v2
     direction LR
 
-    [*] --> NormalA : WorkerStats constructed\nA=active, B=inactive
+    [*] --> NormalA : WorkerStats constructed (A active, B inactive)
+    NormalA --> SwapRequested : Reporter requests swap
+    SwapRequested --> NormalB : Worker acknowledges swap
+    NormalB --> SwapRequested : Reporter requests swap again
+    SwapRequested --> NormalA : Worker acknowledges swap
 
-    NormalA --> SwapRequested : Reporter calls RequestSwap()\nswapAck.Reset(); _swapRequested=1
-    SwapRequested --> NormalB  : Worker acks:\nA↔B swapped; A.Reset(); swapAck.Set()
-    NormalB --> SwapRequested  : Reporter calls RequestSwap() again
-    SwapRequested --> NormalA  : Worker acks:\nB↔A swapped; B.Reset(); swapAck.Set()
-
-    note right of SwapRequested : Reporter is blocked in WaitForSwapAck.\nWorker continues processing on old active.\nSwap happens at next safe point only.
+    note right of SwapRequested : Reporter blocked in WaitForSwapAck. Swap occurs at next safe point.
 ```
 
 **Safe points for `AcknowledgeSwapIfRequested`** (every worker, per loop iteration):
@@ -316,7 +315,7 @@ stateDiagram-v2
     StopWatcher  --> StopBus      : watcher.Stop() — DisableRaisingEvents
     StopBus      --> StopWorkers  : bus.Stop() — Writer.TryComplete()
     StopWorkers  --> StopReporter : coordinator.Stop()\n  Volatile.Write(_stopping=true)\n  foreach Join(2 s) or Interrupt
-    StopReporter --> Finished     : reporter.Stop()\n  timer.Dispose(); Join(2 s)
+    StopReporter --> Finished     : reporter.Stop()\n  timer.Dispose()\n Join(2 s)
     Finished     --> [*]          : _shutdownEvent.Set() — unblocks main thread
 ```
 
@@ -328,53 +327,50 @@ A single file-modification event travelling through all layers:
 
 ```mermaid
 sequenceDiagram
-    participant FS  as Filesystem
-    participant WTA as WatcherThread (OS)
+    participant FS as Filesystem
+    participant WTA as WatcherThread_OS
     participant BUS as BoundedEventBus
-    participant WT  as Worker ws-0
+    participant WT as Worker_ws_0
     participant REG as FileStateRegistry
-    participant FST as FileState (Gate)
-    participant FP  as FileProcessor
-    participant WS  as WorkerStats[0]
-    participant RT  as Reporter thread
+    participant FST as FileState_Gate
+    participant FP as FileProcessor
+    participant WS as WorkerStats_0
+    participant RT as Reporter
 
     FS->>WTA: File written
-    WTA->>BUS: Publish(Modified, path)\nTryWrite → _published++
-    Note right of BUS: If full: _dropped++, event silently discarded (BP-002)
+    WTA->>BUS: Publish Modified path
+    Note right of BUS: published incremented - if full then dropped incremented
 
-    BUS-->>WT: TryDequeue(200 ms) → FsEvent
-    WT->>WS: Active.IncrementFsEvent(Modified)
-    WT->>REG: GetOrCreate(path) → FileState
-    WT->>FST: Monitor.TryEnter(Gate)
-
-    alt Gate free
-        WT->>WS: AcknowledgeSwapIfRequested()
-        WT->>FP: ProcessOnce(path, state, activeBuffer)
-        FP->>FP: FileTailer.ReadAppended → bytes
-        FP->>FP: Utf8LineScanner.Scan → lines
-        FP->>FP: LogParser.TryParse → LogRecord
-        FP->>WS: IncrementLevel / IncrementMessage / RecordLatency
-        FP->>FST: state.Offset += bytesRead
-        WT->>WS: AcknowledgeSwapIfRequested()
-        WT->>FST: IsDirty? → false → break loop
-        WT->>FST: Monitor.Exit(Gate)
-    else Gate busy (another worker holds it)
-        WT->>FST: MarkDirtyIfAllowed() — _dirty=1
+    BUS-->>WT: TryDequeue 200ms
+    WT->>WS: IncrementFsEvent Modified
+    WT->>REG: GetOrCreate path
+    WT->>FST: Monitor.TryEnter Gate
+    alt Gate acquired
+        WT->>WS: AcknowledgeSwapIfRequested
+        WT->>FP: ProcessOnce path state buffer
+        FP->>FP: FileTailer.ReadAppended
+        FP->>FP: Utf8LineScanner.Scan
+        FP->>FP: LogParser.TryParse
+        FP->>WS: IncrementLevelMessage_RecordLatency
+        FP->>FST: Offset += bytesRead
+        WT->>WS: AcknowledgeSwapIfRequested
+        WT->>FST: IsDirty=false exit loop
+        WT->>FST: Monitor.Exit Gate
+    else Gate busy
+        WT->>FST: MarkDirtyIfAllowed
         WT->>WS: CoalescedDueToBusyGate++
-        Note right of WT: Gate holder will re-process\ndue to dirty flag
     end
+    WT->>WS: AcknowledgeSwapIfRequested
 
-    WT->>WS: AcknowledgeSwapIfRequested()
-
-    Note over RT: PeriodicTimer fires (e.g., every 2 s)
-    RT->>WS: RequestSwap()
+    Note over RT: PeriodicTimer tick
+    RT->>WS: RequestSwap
     WS-->>WT: _swapRequested=1 visible at next safe point
-    WT->>WS: Swap A↔B; A.Reset(); swapAck.Set()
-    RT->>WS: WaitForSwapAck returns
-    RT->>WS: GetInactiveBufferForMerge() → bufferB
-    RT->>RT: snapshot.MergeFrom(bufferB)
-    RT->>RT: FinalizeSnapshot → TopK + percentiles
-    RT->>RT: PrintReportFrame to stdout
+    WT->>WS: Swap active_inactive reset ack
+    RT->>WS: WaitForSwapAck
+    RT->>WS: GetInactiveBufferForMerge
+    RT->>RT: snapshot.MergeFrom
+    RT->>RT: FinalizeSnapshot topK
+    RT->>RT: PrintReportFrame
 ```
 
 ---
