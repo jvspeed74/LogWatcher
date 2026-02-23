@@ -23,7 +23,6 @@ public class CommandConfigurationTests : IDisposable
         }
     }
 
-    // TODO: map to invariant
     [Fact]
     public void Parse_WithDirectoryArgument_Succeeds()
     {
@@ -35,7 +34,6 @@ public class CommandConfigurationTests : IDisposable
         Assert.Empty(parseResult.Errors);
     }
 
-    // TODO: map to invariant
     [Fact]
     public void Parse_WithAllOptions_Succeeds()
     {
@@ -47,7 +45,6 @@ public class CommandConfigurationTests : IDisposable
         Assert.Empty(parseResult.Errors);
     }
 
-    // TODO: map to invariant
     [Fact]
     public void Parse_WithMissingPath_ReturnsErrors()
     {
@@ -59,7 +56,6 @@ public class CommandConfigurationTests : IDisposable
         Assert.NotEmpty(parseResult.Errors);
     }
 
-    // TODO: map to invariant
     [Fact]
     public void Parse_WithInvalidNumber_ReturnsErrors()
     {
@@ -71,7 +67,6 @@ public class CommandConfigurationTests : IDisposable
         Assert.NotEmpty(parseResult.Errors);
     }
 
-    // TODO: map to invariant
     [Fact]
     public void Parse_WhenHelpRequested_ReturnsNoErrors()
     {

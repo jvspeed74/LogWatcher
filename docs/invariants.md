@@ -20,6 +20,42 @@ correctness during code review.
 
 ---
 
+## Invariant Decision Table
+
+An invariant is an **architectural guarantee** — a property that crosses a component boundary or
+describes a system-wide safety rule that multiple components depend on. Correct behavior that is
+self-contained within one component is not an invariant; leave it untagged.
+
+**Step 1 — Disqualify.** If any row below matches, it is not an invariant. Leave the test untagged.
+
+"Caller" means the *next component in the dependency chain*, not the end user.
+
+| This behavior is… | Example |
+|---|---|
+| Self-contained within one component; no downstream component depends on it | TopK sort order, merge summation, message accumulation |
+| An internal implementation detail invisible to callers | Chunk size, buffer capacity, timeout values |
+| A quality-of-life or ergonomic concern | API shape, logging, configurability |
+| A performance target scoped to reporting or startup | Allocation during report formatting |
+| Visible in output but any correct alternative would be equally acceptable | Tie-breaking order, dequeue ordering, default sort stability |
+
+**Step 2 — Classify.** If none of the above matched, pick the type using the first row that applies.
+
+| If a violation would… | Type |
+|---|---|
+| Cause data loss, corruption, or a crash | `strict` |
+| Break an assumption both sides of a component boundary rely on | `contract` |
+| Degrade observable behavior but leave the system operational | `behavioral` |
+| Only occur under resource exhaustion or OS failure | `operational` |
+
+**Edge case note.** An edge case qualifies as an invariant only if the calling component makes a distinct
+decision based on the specific value returned (e.g., null vs. 0 changes a branch). If all values are
+treated uniformly by callers, the edge case is self-contained and does not qualify.
+
+**Allocation note.** Per-line or per-chunk heap allocation in the hot path is a `strict` invariant because it directly
+causes observable GC pressure and latency spikes. Allocation during reporting or startup is not an invariant.
+
+---
+
 ## Attribute Usage
 
 Tag tests with `[Invariant("ID")]` to declare which invariant a test protects.
@@ -86,6 +122,7 @@ public void Publish_WhenFull_DropsNewestAndPreservesExisting() { ... }
 | TAIL-003 | `strict`     | TAIL       | Allocated read buffers are always released regardless of read outcome.                                                     |
 | TAIL-004 | `behavioral` | TAIL       | File not found, access denied, and IO errors are mapped to status codes and never propagated as exceptions to the caller.  |
 | TAIL-005 | `contract`   | TAIL, PROC | The span passed to `onChunk` is only valid for the duration of the callback and must not be retained by the caller.        |
+| TAIL-006 | `contract`   | TAIL, PROC | After a successful read, the caller's offset is advanced by exactly the number of bytes delivered. A subsequent call with that offset reads only bytes appended since the previous call and never re-delivers already-consumed bytes. |
 
 ---
 
@@ -130,11 +167,12 @@ public void Publish_WhenFull_DropsNewestAndPreservesExisting() { ... }
 
 | ID       | Type       | Domains | Description                                                                                                                                             |
 |----------|------------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| STAT-001 | `strict`   | STAT    | Level counts are indexed by the integer value of `LogLevel`. An unrecognized index is silently ignored and never throws.                                |
-| STAT-002 | `strict`   | STAT    | Histogram bin counts never decrease within a single buffer lifetime.                                                                                    |
-| STAT-003 | `strict`   | STAT    | Histogram total count always equals the sum of all bin counts.                                                                                          |
-| STAT-004 | `contract` | STAT    | `Reset()` returns the buffer to an observable zero state. Callers must not assume anything about the internal capacity or allocation state after reset. |
-| STAT-005 | `strict`   | STAT    | Latency values outside the supported range are mapped to an overflow bucket. No exception is thrown and no value is silently discarded.                 |
+| STAT-001 | `strict`   | STAT      | Level counts are indexed by the integer value of `LogLevel`. An unrecognized index is silently ignored and never throws.                                |
+| STAT-002 | `strict`   | STAT      | Histogram bin counts never decrease within a single buffer lifetime.                                                                                    |
+| STAT-003 | `strict`   | STAT      | Histogram total count always equals the sum of all bin counts.                                                                                          |
+| STAT-004 | `contract` | STAT      | `Reset()` returns the buffer to an observable zero state. Callers must not assume anything about the internal capacity or allocation state after reset. |
+| STAT-005 | `strict`   | STAT      | Latency values outside the supported range are mapped to an overflow bucket. No exception is thrown and no value is silently discarded.                 |
+| STAT-006 | `contract` | STAT, RPT | `Percentile()` returns `null` when the histogram contains no data. Callers may rely on `null` to distinguish "no measurements recorded" from a zero-valued measurement. |
 
 ---
 

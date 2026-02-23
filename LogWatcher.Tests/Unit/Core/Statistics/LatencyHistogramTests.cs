@@ -4,8 +4,8 @@ namespace LogWatcher.Tests.Unit.Core.Statistics;
 
 public class LatencyHistogramTests
 {
-    // TODO: map to invariant
     [Fact]
+    [Invariant("STAT-006")]
     public void Percentile_WhenHistogramEmpty_ReturnsNull()
     {
         var h = new LatencyHistogram();

@@ -24,7 +24,6 @@ public class BoundedEventBusTests
         Assert.Equal(2, bus.Depth);
     }
 
-    // TODO: map to invariant
     [Fact]
     public void TryDequeue_WithMultiplePublishedItems_ReturnsInFifoOrder()
     {

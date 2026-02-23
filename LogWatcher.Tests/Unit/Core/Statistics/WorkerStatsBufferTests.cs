@@ -27,7 +27,6 @@ public class WorkerStatsBufferTests
         Assert.Null(b.Histogram.Percentile(0.5));
     }
 
-    // TODO: map to invariant
     [Fact]
     public void IncrementMessage_CalledMultipleTimes_AccumulatesCountsCorrectly()
     {

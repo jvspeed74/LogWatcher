@@ -30,8 +30,8 @@ public class FileTailerTests : IDisposable
         return Path.Combine(_dir, name);
     }
 
-    // TODO: map to invariant
     [Fact]
+    [Invariant("TAIL-006")]
     public void ReadAppended_WithAppendedContent_ReadsOnlyNewBytes()
     {
         var p = MakePath("log1.txt");
