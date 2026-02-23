@@ -122,6 +122,7 @@ public void Publish_WhenFull_DropsNewestAndPreservesExisting() { ... }
 | TAIL-003 | `strict`     | TAIL       | Allocated read buffers are always released regardless of read outcome.                                                     |
 | TAIL-004 | `behavioral` | TAIL       | File not found, access denied, and IO errors are mapped to status codes and never propagated as exceptions to the caller.  |
 | TAIL-005 | `contract`   | TAIL, PROC | The span passed to `onChunk` is only valid for the duration of the callback and must not be retained by the caller.        |
+| TAIL-006 | `contract`   | TAIL, PROC | After a successful read, the caller's offset is advanced by exactly the number of bytes delivered. A subsequent call with that offset reads only bytes appended since the previous call and never re-delivers already-consumed bytes. |
 
 ---
 
@@ -166,11 +167,12 @@ public void Publish_WhenFull_DropsNewestAndPreservesExisting() { ... }
 
 | ID       | Type       | Domains | Description                                                                                                                                             |
 |----------|------------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| STAT-001 | `strict`   | STAT    | Level counts are indexed by the integer value of `LogLevel`. An unrecognized index is silently ignored and never throws.                                |
-| STAT-002 | `strict`   | STAT    | Histogram bin counts never decrease within a single buffer lifetime.                                                                                    |
-| STAT-003 | `strict`   | STAT    | Histogram total count always equals the sum of all bin counts.                                                                                          |
-| STAT-004 | `contract` | STAT    | `Reset()` returns the buffer to an observable zero state. Callers must not assume anything about the internal capacity or allocation state after reset. |
-| STAT-005 | `strict`   | STAT    | Latency values outside the supported range are mapped to an overflow bucket. No exception is thrown and no value is silently discarded.                 |
+| STAT-001 | `strict`   | STAT      | Level counts are indexed by the integer value of `LogLevel`. An unrecognized index is silently ignored and never throws.                                |
+| STAT-002 | `strict`   | STAT      | Histogram bin counts never decrease within a single buffer lifetime.                                                                                    |
+| STAT-003 | `strict`   | STAT      | Histogram total count always equals the sum of all bin counts.                                                                                          |
+| STAT-004 | `contract` | STAT      | `Reset()` returns the buffer to an observable zero state. Callers must not assume anything about the internal capacity or allocation state after reset. |
+| STAT-005 | `strict`   | STAT      | Latency values outside the supported range are mapped to an overflow bucket. No exception is thrown and no value is silently discarded.                 |
+| STAT-006 | `contract` | STAT, RPT | `Percentile()` returns `null` when the histogram contains no data. Callers may rely on `null` to distinguish "no measurements recorded" from a zero-valued measurement. |
 
 ---
 
