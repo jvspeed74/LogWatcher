@@ -168,6 +168,7 @@ dotnet run --project LogWatcher.App -- <watchPath> [options]
 | `--queue-capacity, -q`  | Maximum capacity of the filesystem event queue   | 10,000     |
 | `--report-interval, -i` | Interval between console output (seconds)        | 2          |
 | `--topk, -k`            | Number of most-frequent messages to track        | 10         |
+| `--log-level, -l`       | Minimum log level for LogWatcher output (`Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`) | `Warning` |
 
 ```bash
 dotnet run --project LogWatcher.App -- ./logs --workers 8 --queue-capacity 50000 --report-interval 1

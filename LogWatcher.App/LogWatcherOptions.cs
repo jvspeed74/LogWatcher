@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.App;
 
 /// <summary>
@@ -8,4 +10,5 @@ public sealed record LogWatcherOptions(
     int Workers,
     int QueueCapacity,
     int ReportIntervalSeconds,
-    int TopK);
+    int TopK,
+    LogLevel LogLevel);

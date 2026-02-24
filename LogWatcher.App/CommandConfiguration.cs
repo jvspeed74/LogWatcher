@@ -132,6 +132,13 @@ public static class CommandConfiguration
             }
         });
 
+        // Define --log-level option with short alias -l
+        var logLevelOpt = new Option<LogLevel>("--log-level", new[] { "--log-level", "-l" })
+        {
+            Description = "Minimum log level for LogWatcher output (Trace, Debug, Information, Warning, Error, Critical)",
+            DefaultValueFactory = _ => LogLevel.Warning
+        };
+
         // Build root command
         var rootCommand = new RootCommand("High-performance log file watcher with real-time statistics")
         {
@@ -139,7 +146,8 @@ public static class CommandConfiguration
             workersOpt,
             queueCapacityOpt,
             reportIntervalOpt,
-            topKOpt
+            topKOpt,
+            logLevelOpt
         };
 
         // Register command handler
@@ -150,9 +158,10 @@ public static class CommandConfiguration
             var queueCapacity = parseResult.GetValue(queueCapacityOpt);
             var reportInterval = parseResult.GetValue(reportIntervalOpt);
             var topK = parseResult.GetValue(topKOpt);
+            var logLevel = parseResult.GetValue(logLevelOpt);
 
             var absoluteWatchPath = Path.GetFullPath(watchPath);
-            var options = new LogWatcherOptions(absoluteWatchPath, workers, queueCapacity, reportInterval, topK);
+            var options = new LogWatcherOptions(absoluteWatchPath, workers, queueCapacity, reportInterval, topK, logLevel);
 
             Host.CreateDefaultBuilder()
                 .ConfigureLogging(logging =>
@@ -160,6 +169,7 @@ public static class CommandConfiguration
                     // Suppress noisy Microsoft.Hosting.Lifetime messages
                     logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Warning);
                     logging.AddFilter("Microsoft", LogLevel.Warning);
+                    logging.AddFilter("LogWatcher", options.LogLevel);
                 })
                 .ConfigureServices(services =>
                 {
