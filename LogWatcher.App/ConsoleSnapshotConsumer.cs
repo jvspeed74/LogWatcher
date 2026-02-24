@@ -18,7 +18,7 @@ public sealed class ConsoleSnapshotConsumer : ISnapshotConsumer
         double linesRate = elapsedSeconds > 0 ? snapshot.LinesProcessed / elapsedSeconds : 0.0;
 
         Console.WriteLine(
-            $"[REPORT] elapsed={elapsedSeconds:0.00}s lines={snapshot.LinesProcessed} lines/s={linesRate:0.00} malformed={snapshot.MalformedLines} fs-events={fsEventsTotal} fs/s={fsRate:0.00} busDropped={snapshot.BusDropped} busPublished={snapshot.BusPublished} busDepth={snapshot.BusDepth} allocatedDelta={snapshot.AllocatedBytesDelta} allocated={snapshot.AllocatedBytesTotal} gen0Delta={snapshot.Gen0Delta} gen1Delta={snapshot.Gen1Delta} gen2Delta={snapshot.Gen2Delta}");
+            $"[REPORT] elapsed={elapsedSeconds:0.00}s lines={snapshot.LinesProcessed} lines/s={linesRate:0.00} malformed={snapshot.MalformedLines} fs-events={fsEventsTotal} fs/s={fsRate:0.00} busDropped={snapshot.BusDropped} busPublished={snapshot.BusPublished} busDepth={snapshot.BusDepth} allocatedDelta={snapshot.AllocatedBytesDelta} allocatedLifetime={snapshot.AllocatedBytesTotal} gen0Delta={snapshot.Gen0Delta} gen1Delta={snapshot.Gen1Delta} gen2Delta={snapshot.Gen2Delta}");
 
         if (snapshot.TopKMessages.Count > 0)
         {
