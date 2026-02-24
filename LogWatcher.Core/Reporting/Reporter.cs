@@ -120,6 +120,7 @@ namespace LogWatcher.Core.Reporting
 
                 // Swap phase
                 foreach (var w in _workers) w.RequestSwap();
+                if (_logger != null) LogReportCycle(_logger, _workers.Length);
                 // Wait for acks in parallel so one slow worker doesn't consume the full timeout for all.
                 // Parallel.ForEach is justified here: workers are independent and sequential waits would
                 // accumulate per-worker timeouts, causing unbounded delay under a slow/stuck worker.
@@ -204,5 +205,8 @@ namespace LogWatcher.Core.Reporting
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Reporter final report error")]
         private static partial void LogFinalReportError(ILogger logger, Exception exception);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Report cycle starting workers={Workers}")]
+        private static partial void LogReportCycle(ILogger logger, int workers);
     }
 }

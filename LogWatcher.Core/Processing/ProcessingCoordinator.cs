@@ -60,9 +60,10 @@ namespace LogWatcher.Core.Processing
         public void Start()
         {
             Volatile.Write(ref _stopping, false);
-            foreach (var t in _threads)
+            for (int i = 0; i < _threads.Length; i++)
             {
-                t.Start();
+                _threads[i].Start();
+                if (_logger != null) LogWorkerStarted(_logger, i);
             }
         }
 
@@ -128,6 +129,8 @@ namespace LogWatcher.Core.Processing
                 // Acknowledge swap after fully handling this event
                 stats.AcknowledgeSwapIfRequested();
             }
+
+            if (_logger != null) LogWorkerStopped(_logger, workerIndex);
         }
 
         private void HandleCreateOrModify(string path, WorkerStats stats)
@@ -150,6 +153,7 @@ namespace LogWatcher.Core.Processing
                     buffer.SkippedDueToDeletePending++;
                     _registry.FinalizeDelete(path);
                     buffer.FileStateRemovedCount++;
+                    if (_logger != null) LogSkippedDeletePending(_logger, path);
                     return;
                 }
 
@@ -198,6 +202,7 @@ namespace LogWatcher.Core.Processing
         {
             if (!_registry.TryGet(path, out var state))
             {
+                if (_logger != null) LogDeleteUntracked(_logger, path);
                 return;
             }
 
@@ -230,5 +235,17 @@ namespace LogWatcher.Core.Processing
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Delete pending set, gate busy path={Path}")]
         private static partial void LogDeletePendingSet(ILogger logger, string path);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Worker started workerIndex={WorkerIndex}")]
+        private static partial void LogWorkerStarted(ILogger logger, int workerIndex);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Worker stopped workerIndex={WorkerIndex}")]
+        private static partial void LogWorkerStopped(ILogger logger, int workerIndex);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Delete event for untracked path={Path}")]
+        private static partial void LogDeleteUntracked(ILogger logger, string path);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Skipped create/modify, delete pending path={Path}")]
+        private static partial void LogSkippedDeletePending(ILogger logger, string path);
     }
 }

@@ -150,6 +150,7 @@ namespace LogWatcher.Core.Backpressure
             // Completing the writer causes WaitToReadAsync to return false once the
             // channel is empty, unblocking all blocked TryDequeue callers (BP-005).
             _channel.Writer.TryComplete();
+            if (_logger != null) LogBusStopped(_logger);
         }
 
         /// <summary>Number of items successfully published to the bus.</summary>
@@ -164,5 +165,8 @@ namespace LogWatcher.Core.Backpressure
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Bus at capacity; event dropped")]
         private static partial void LogEventDropped(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Bus stopped")]
+        private static partial void LogBusStopped(ILogger logger);
     }
 }

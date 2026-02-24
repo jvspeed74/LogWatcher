@@ -92,6 +92,7 @@ namespace LogWatcher.Core.Processing.Tailing
                 if (totalBytesRead > 0)
                 {
                     offset = effectiveOffset + totalBytesRead;
+                    if (_logger != null) LogReadSome(_logger, path, effectiveOffset, totalBytesRead);
                     return truncated ? TailReadStatus.TruncatedReset : TailReadStatus.ReadSome;
                 }
 
@@ -127,5 +128,8 @@ namespace LogWatcher.Core.Processing.Tailing
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Truncation detected, offset reset path={Path} oldOffset={OldOffset}")]
         private static partial void LogTruncationDetected(ILogger logger, string path, long oldOffset);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Read path={Path} offset={Offset} bytes={BytesRead}")]
+        private static partial void LogReadSome(ILogger logger, string path, long offset, int bytesRead);
     }
 }

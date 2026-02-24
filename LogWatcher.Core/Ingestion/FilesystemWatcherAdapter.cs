@@ -61,6 +61,7 @@ namespace LogWatcher.Core.Ingestion
         {
             ObjectDisposedException.ThrowIf(_watcher == null, this);
             _watcher.EnableRaisingEvents = true;
+            if (_logger != null) LogWatcherStarted(_logger, _watcher.Path);
         }
 
         /// <summary>
@@ -70,6 +71,7 @@ namespace LogWatcher.Core.Ingestion
         {
             if (_watcher == null) return;
             _watcher.EnableRaisingEvents = false;
+            if (_logger != null) LogWatcherStopped(_logger);
         }
 
         private bool DefaultIsProcessable(string path)
@@ -115,7 +117,10 @@ namespace LogWatcher.Core.Ingestion
             {
                 bool processable = _isProcessable(path);
                 var ev = new FsEvent(kind, path, oldPath, DateTimeOffset.UtcNow, processable);
-                _bus.Publish(ev);
+                if (_bus.Publish(ev))
+                {
+                    if (_logger != null) LogEventPublished(_logger, kind, path, processable);
+                }
             }
             catch (Exception ex)
             {
@@ -146,5 +151,14 @@ namespace LogWatcher.Core.Ingestion
 
         [LoggerMessage(Level = LogLevel.Warning, Message = "Exception publishing event kind={Kind} path={Path}")]
         private static partial void LogPublishException(ILogger logger, FsEventKind kind, string path, Exception exception);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Watcher started path={Path}")]
+        private static partial void LogWatcherStarted(ILogger logger, string path);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Watcher stopped")]
+        private static partial void LogWatcherStopped(ILogger logger);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Event published kind={Kind} path={Path} processable={Processable}")]
+        private static partial void LogEventPublished(ILogger logger, FsEventKind kind, string path, bool processable);
     }
 }

@@ -35,6 +35,7 @@ public sealed partial class FileStateRegistry
                 Carry = new PartialLineBuffer(),
                 Generation = epoch + 1
             };
+            if (_logger != null) LogFileStateCreated(_logger, p, fs.Generation);
             return fs;
         });
     }
@@ -59,6 +60,7 @@ public sealed partial class FileStateRegistry
     {
         if (_states.TryRemove(path, out var removed))
         {
+            if (_logger != null) LogFileStateFinalized(_logger, path);
             // clear its carry for GC
             try
             {
@@ -86,4 +88,10 @@ public sealed partial class FileStateRegistry
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Exception during carry buffer cleanup for path={Path}")]
     private static partial void LogCarryCleanupFailure(ILogger logger, string path, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "File state created path={Path} generation={Generation}")]
+    private static partial void LogFileStateCreated(ILogger logger, string path, int generation);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "File state finalized path={Path}")]
+    private static partial void LogFileStateFinalized(ILogger logger, string path);
 }
