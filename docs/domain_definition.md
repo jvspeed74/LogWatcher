@@ -31,18 +31,18 @@ role. A domain groups code by the force that drives it to change.
 Every domain definition must include all of the following properties. A domain definition is incomplete
 if any property is absent or does not satisfy its constraint.
 
-| Property                 | Constraint                                                                                                                                                                                                                                                                                                                                                                                                           |
-|--------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Name**                 | A unique noun phrase that names the capability, not the technology that implements it.                                                                                                                                                                                                                                                                                                                               |
-| **Namespace**            | Exactly one namespace. No other domain maps to this namespace.                                                                                                                                                                                                                                                                                                                                                       |
-| **Responsibility**       | One sentence. Active voice. No conjunctions. If "and" is required to complete the sentence, the domain has two responsibilities and must be split or its responsibility restated at a higher level of abstraction.                                                                                                                                                                                                   |
-| **Change Authority**     | One named external force. Must be specific enough that any proposed change to the domain can be definitively answered: does this change originate from this authority, yes or no? If the answer would be "maybe", the Change Authority is not specific enough.                                                                                                                                                       |
-| **In Scope**             | An explicit list of capabilities this domain owns. Each item must appear in exactly one domain's In Scope list across the entire system.                                                                                                                                                                                                                                                                             |
-| **Data Ownership**       | An explicit list of data structures (types, records, schemas) this domain defines and owns. Each structure's schema is governed exclusively by this domain's Change Authority. Each structure must appear in exactly one domain's Data Ownership list across the entire system. Other domains may reference these structures but may not redefine or extend them.                                                    |
-| **Out of Scope**         | An explicit list of capabilities this domain must not perform. This list is not a catch-all. It names the specific capabilities most likely to be mistakenly placed here.                                                                                                                                                                                                                                            |
-| **Why**                  | The structural reason this boundary exists as a separate domain. Must name the specific problem the boundary solves. "Separation of concerns", "clarity", and "correctness" are not structural reasons.                                                                                                                                                                                                              |
-| **Contracts**            | The explicit inbound and outbound interfaces through which other domains interact with this domain, of two kinds: **behavioral** (callable interfaces: methods, delegates, events) and **data** (structures owned by this domain that cross its boundary, and structures owned by other domains that this domain receives). Both must be declared explicitly. Other domains must not access this domain's internals. |
-| **Dependency Direction** | The declared list of other domains this domain may depend on. Must name domains, not capabilities, layers, or technologies.                                                                                                                                                                                                                                                                                          |
+| Property                 | Constraint                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+|--------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Name**                 | A unique noun phrase that names the capability, not the technology that implements it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Namespace**            | Exactly one namespace. No other domain maps to this namespace.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Responsibility**       | One sentence. Active voice. No conjunctions. If "and" is required to complete the sentence, the domain has two responsibilities and must be split or its responsibility restated at a higher level of abstraction.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Change Authority**     | One named external force. Must be specific enough that any proposed change to the domain can be definitively answered: does this change originate from this authority, yes or no? If the answer would be "maybe", the Change Authority is not specific enough.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **In Scope**             | An explicit list of capabilities this domain owns. Each item must appear in exactly one domain's In Scope list across the entire system.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Data Ownership**       | An explicit list of data structures (types, records, schemas) this domain defines and owns. Each structure's schema is governed exclusively by this domain's Change Authority. Each structure must appear in exactly one domain's Data Ownership list across the entire system. Other domains may reference these structures but may not redefine or extend them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **Out of Scope**         | An explicit list of capabilities this domain must not perform. This list is not a catch-all. It names the specific capabilities most likely to be mistakenly placed here.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **Why**                  | The structural reason this boundary exists as a separate domain. Must name the specific problem the boundary solves. "Separation of concerns", "clarity", and "correctness" are not structural reasons.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Contracts**            | The explicit interfaces through which other domains interact with this domain, of two kinds: **behavioral** (callable interfaces: methods, delegates, events) and **data** (data structures crossing this domain's boundary). Behavioral contracts are declared as inbound or outbound. Data contracts are declared as two named sub-lists: **Data, outbound** — structures owned by this domain that other domains reference, with each referencing domain named explicitly; **Data, inbound** — structures owned by other domains that this domain references, with each owning domain named explicitly. Both sub-lists must be declared. An empty sub-list must be declared explicitly as `none`; an absent sub-list fails validation. `none` is an affirmative statement that the author confirmed no data crosses this boundary in that direction — it cannot be inferred from omission. Other domains must not access this domain's internals. |
+| **Dependency Direction** | The declared list of other domains this domain may depend on. Must name domains, not capabilities, layers, or technologies.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ---
 
@@ -113,6 +113,8 @@ is required.
   misassigned.
 - Does the Contracts section declare all data structures that cross this domain's boundary —
   both those this domain owns and those it receives from other domains?
+- Are both `Data, outbound` and `Data, inbound` sub-lists present, each declared either with
+  named entries or explicitly as `none`? An absent sub-list is not equivalent to `none`.
 
 ### Scope 2 — System-level
 
@@ -126,14 +128,21 @@ Each question requires all domain definitions to be present.
   Ownership list across the entire system?
 - For every domain that references a data structure in this domain's Data Ownership: does that
   domain declare a data dependency on this domain in its Dependency Direction?
+- For every data structure declared as outbound to a named domain in this domain's Contracts: does
+  that named domain declare the same structure as inbound from this domain?
+- For every data structure declared as inbound from a named domain in this domain's Contracts: does
+  that named domain declare the same structure as outbound to this domain?
 
 ---
 
 ## 5. Subdomains
 
 A **subdomain** is a domain that lives within a named **domain area**. A domain area is a logical
-grouping — it does not own capabilities. Its subdomains own all the capabilities. The domain area's
-name typically appears as a prefix in each subdomain's namespace.
+grouping — it does not own capabilities or data structures, and it does not map to a namespace.
+Its subdomains own all capabilities and data structures. Each subdomain's namespace is formed by
+appending a unique suffix to the domain area's namespace prefix. The domain area's prefix is
+reserved: no subdomain may claim the bare prefix as its namespace if any sibling subdomain exists
+under it.
 
 A subdomain is a full domain. All domain rules apply to it without exception.
 
@@ -159,6 +168,13 @@ individual subdomain's behavior.
 A subdomain may only own data structures whose schema is governed by that subdomain's own Change
 Authority. A data structure may not be claimed in both a parent domain area and a subdomain's
 Data Ownership simultaneously.
+
+**Rule S6.** Each subdomain must have a namespace that is distinct from every sibling subdomain's
+namespace and from the domain area's bare namespace prefix. The domain area prefix is a reserved
+grouping identifier. It is not a valid namespace for any subdomain unless that subdomain is the
+sole subdomain in the area, and even then the bare prefix must not be reused if further subdomains
+are added later. When a second subdomain is introduced, the first must be renamed to a suffixed
+namespace.
 
 ### When to use a subdomain
 
@@ -198,6 +214,8 @@ Each example uses a generic problem space. No example is tied to a specific tech
 
 - `Message` — the fully formed message record (fields: recipient address, subject, body, headers)
   whose structure is governed by what the mail provider's API requires
+- `DeliveryResult` — the delivery outcome record (fields: succeeded, failure reason) whose
+  structure is governed by what the mail provider reports back on transmission attempts
 
 **Out of Scope:**
 
@@ -211,10 +229,14 @@ component that generates or routes notifications.
 
 **Contracts:**
 
-- Behavioral, inbound: `IMessageDispatcher.Send(Message message)` — accepts a fully formed message
-- Behavioral, outbound: none (delivery result is returned to caller via return value)
-- Data, inbound: `Message` — owned by this domain; callers must construct it using this domain's
-  declared type, not a local copy
+- Behavioral, inbound: `IMessageDispatcher.Send(Message message) → DeliveryResult` — accepts a
+  fully formed message and returns a delivery outcome
+- Behavioral, outbound: none
+- Data, outbound: `Message` to Notification Templating — callers must construct it using this
+  domain's declared type; the schema is governed by what the mail provider's API requires
+- Data, outbound: `DeliveryResult` to Notification Templating — the outcome of a Send call;
+  schema governed by what the mail provider reports back
+- Data, inbound: none
 
 **Dependency Direction:** depends on `Notifications.Policy` for retry configuration
 
@@ -226,10 +248,14 @@ component that generates or routes notifications.
 - Responsibility: no conjunctions ✓
 - Why: structural — names what would couple if the boundary did not exist ✓
 - Dependency Direction: names a domain, not a layer or technology ✓
-- Data Ownership: `Message` — any proposed change to the structure's fields (e.g., a provider
-  requiring a new `X-Priority` header field) is traceable to the mail provider's API. A change
-  driven by template content is not traceable here. ✓
-- Contracts: both behavioral and data contracts are declared ✓
+- Data Ownership: `Message` and `DeliveryResult` — all proposed schema changes (new header field
+  required by provider, new failure reason code returned by provider) are traceable to the mail
+  provider's API. Changes driven by template content or caller preferences are not traceable here. ✓
+- Contracts: behavioral and data contracts are declared; both sub-lists present. `Message` and
+  `DeliveryResult` are outbound to Notification Templating (Email Delivery owns both schemas;
+  Notification Templating conforms to them). The symmetric check requires Notification Templating
+  to declare both structures as inbound from Email Delivery. `Data, inbound: none` is an
+  affirmative declaration that no foreign-owned schema crosses this boundary inbound. ✓
 
 **Validation — Scope 2 (assuming no other domain claims these In Scope items or Data Ownership):** ✓
 
