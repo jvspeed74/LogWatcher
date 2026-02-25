@@ -72,7 +72,7 @@ namespace LogWatcher.Core.Statistics
         /// <summary>
         /// Resets counters, arrays and collections to prepare the buffer for reuse.
         /// </summary>
-        public void Reset()
+        internal void Reset()
         {
             FsCreated = FsModified = FsDeleted = FsRenamed = 0;
             LinesProcessed = 0;
@@ -96,7 +96,7 @@ namespace LogWatcher.Core.Statistics
         /// Increment the appropriate filesystem event counter for <paramref name="kind"/>.
         /// </summary>
         /// <param name="kind">The filesystem event kind to increment.</param>
-        public void IncrementFsEvent(FsEventKind kind)
+        internal void IncrementFsEvent(FsEventKind kind)
         {
             switch (kind)
             {
@@ -112,7 +112,7 @@ namespace LogWatcher.Core.Statistics
         /// Increment the counter for the specified <see cref="LogLevel"/>.
         /// </summary>
         /// <param name="level">Level to increment.</param>
-        public void IncrementLevel(LogLevel level)
+        internal void IncrementLevel(LogLevel level)
         {
             var idx = (int)level;
             if (idx < 0 || idx >= LevelCounts.Length) return;
@@ -124,7 +124,7 @@ namespace LogWatcher.Core.Statistics
         /// </summary>
         /// <param name="key">Non-null message key string.</param>
         /// <exception cref="ArgumentNullException">When <paramref name="key"/> is null.</exception>
-        public void IncrementMessage(string key)
+        internal void IncrementMessage(string key)
         {
             ArgumentNullException.ThrowIfNull(key);
             if (MessageCounts.TryGetValue(key, out var v)) MessageCounts[key] = v + 1;
@@ -135,7 +135,7 @@ namespace LogWatcher.Core.Statistics
         /// Records a latency sample (milliseconds) into the histogram.
         /// </summary>
         /// <param name="latencyMs">Latency value in milliseconds.</param>
-        public void RecordLatency(int latencyMs)
+        internal void RecordLatency(int latencyMs)
         {
             Histogram.Add(latencyMs);
         }

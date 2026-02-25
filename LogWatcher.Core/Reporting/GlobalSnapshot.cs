@@ -96,7 +96,7 @@ namespace LogWatcher.Core.Reporting
         /// Resets counters and prepared collections in preparation for the next merge. Preserves reasonable capacity where applicable.
         /// </summary>
         /// <param name="topK">Top-K capacity to prepare for.</param>
-        public void ResetForNextMerge(int topK)  // TODO: Consider parameterizing message dictionary capacity to prevent excessive resizing
+        internal void ResetForNextMerge(int topK)  // TODO: Consider parameterizing message dictionary capacity to prevent excessive resizing
         {
             FsCreated = FsModified = FsDeleted = FsRenamed = 0;
             LinesProcessed = 0;
@@ -136,7 +136,7 @@ namespace LogWatcher.Core.Reporting
         /// </summary>
         /// <param name="buf">Worker buffer to merge from. Must not be null.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="buf"/> is null.</exception>
-        public void MergeFrom(WorkerStatsBuffer buf)
+        internal void MergeFrom(WorkerStatsBuffer buf)
         {
             ArgumentNullException.ThrowIfNull(buf);
 
@@ -180,7 +180,7 @@ namespace LogWatcher.Core.Reporting
         /// Finalizes derived values (Top-K and percentiles) based on the current aggregated state.
         /// </summary>
         /// <param name="topK">Number of top messages to compute.</param>
-        public void FinalizeSnapshot(int topK)
+        internal void FinalizeSnapshot(int topK)
         {
             TopKMessages.Clear();
             if (MessageCounts.Count > 0)

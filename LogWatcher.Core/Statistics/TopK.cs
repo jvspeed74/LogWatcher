@@ -3,7 +3,7 @@ namespace LogWatcher.Core.Statistics
     /// <summary>
     /// Utility to compute top-K message keys by count.
     /// </summary>
-    public static class TopK
+    internal static class TopK
     {
         /// <summary>
         /// Computes the top <paramref name="k"/> entries from the provided counts dictionary.

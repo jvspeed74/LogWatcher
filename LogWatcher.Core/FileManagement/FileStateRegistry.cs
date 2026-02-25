@@ -80,7 +80,7 @@ public sealed partial class FileStateRegistry
     /// </summary>
     /// <param name="path">Path to query.</param>
     /// <returns>The current epoch (0 when unknown) for <paramref name="path"/>.</returns>
-    public int GetCurrentEpoch(string path)
+    internal int GetCurrentEpoch(string path)
     {
         _epochs.TryGetValue(path, out var e);
         return e;
