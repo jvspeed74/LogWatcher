@@ -125,22 +125,24 @@ namespace LogWatcher.Core.Reporting
                 // Parallel.ForEach is justified here: workers are independent and sequential waits would
                 // accumulate per-worker timeouts, causing unbounded delay under a slow/stuck worker.
                 using var cts = new CancellationTokenSource(_ackTimeout);
-                int acked = 0;
+                var ackedWorkers = new List<WorkerStats>(_workers.Length);
+                var ackedLock = new object();
                 Parallel.ForEach(_workers, w =>
                 {
                     try
                     {
                         // ReSharper disable once AccessToDisposedClosure
                         w.WaitForSwapAck(cts.Token);
-                        Interlocked.Increment(ref acked);
+                        lock (ackedLock) ackedWorkers.Add(w);
                     }
                     catch (OperationCanceledException) { }
                 });
-                if (acked != _workers.Length)
-                    if (_logger != null) LogSwapTimeout(_logger, acked, _workers.Length);
+                if (ackedWorkers.Count != _workers.Length)
+                    if (_logger != null) LogSwapTimeout(_logger, ackedWorkers.Count, _workers.Length);
 
-                // Merge/Frame build + notify consumers
-                var frame = BuildSnapshotAndFrame();
+                // Only merge buffers from workers that acknowledged — unacked workers' inactive
+                // buffers have not been swapped and must not be read (RPT-007, CD-005).
+                var frame = BuildSnapshotAndFrame(workersToMerge: ackedWorkers);
                 foreach (var c in _consumers)
                     c.OnSnapshot(frame, elapsed);
             }
@@ -164,10 +166,11 @@ namespace LogWatcher.Core.Reporting
         /// This method is <c>internal</c> and extracted to allow unit testing of snapshot construction.
         /// </summary>
         /// <returns>The populated <see cref="GlobalSnapshot"/> instance (shared instance reused by the reporter).</returns>
-        internal GlobalSnapshot BuildSnapshotAndFrame(bool updateBaselines = true)
+        internal GlobalSnapshot BuildSnapshotAndFrame(bool updateBaselines = true, IReadOnlyList<WorkerStats>? workersToMerge = null)
         {
             _snapshot.ResetForNextMerge(_topK);
-            foreach (var w in _workers)
+            var workers = workersToMerge ?? _workers;
+            foreach (var w in workers)
             {
                 var buf = w.GetInactiveBufferForMerge();
                 _snapshot.MergeFrom(buf);

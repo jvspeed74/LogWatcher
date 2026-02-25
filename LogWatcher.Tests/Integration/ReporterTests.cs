@@ -150,6 +150,101 @@ public class ReporterTests
     }
 
     [Fact]
+    [Invariant("RPT-007")]
+    public void BuildSnapshotAndFrame_WithWorkerFilter_OnlyMergesSpecifiedWorkers()
+    {
+        // When workersToMerge is a subset, only those workers' inactive buffers are merged.
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var w0 = new WorkerStats();
+        var w1 = new WorkerStats();
+
+        w0.Active.LinesProcessed = 10;
+        w1.Active.LinesProcessed = 99;
+
+        // Swap both so inactive buffers hold the data
+        w0.RequestSwap(); w0.AcknowledgeSwapIfRequested();
+        w1.RequestSwap(); w1.AcknowledgeSwapIfRequested();
+
+        var reporter = new Reporter(new[] { w0, w1 }, bus);
+
+        // Only pass w0 — w1 should be excluded
+        var snap = reporter.BuildSnapshotAndFrame(workersToMerge: new[] { w0 });
+
+        Assert.Equal(10, snap.LinesProcessed);
+    }
+
+    [Fact]
+    public void BuildSnapshotAndFrame_WithNullFilter_MergesAllWorkers()
+    {
+        // When workersToMerge is null the final-report path must merge all workers.
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var w0 = new WorkerStats();
+        var w1 = new WorkerStats();
+
+        w0.Active.LinesProcessed = 7;
+        w1.Active.LinesProcessed = 3;
+
+        w0.RequestSwap(); w0.AcknowledgeSwapIfRequested();
+        w1.RequestSwap(); w1.AcknowledgeSwapIfRequested();
+
+        var reporter = new Reporter(new[] { w0, w1 }, bus);
+        var snap = reporter.BuildSnapshotAndFrame(workersToMerge: null);
+
+        Assert.Equal(10, snap.LinesProcessed);
+    }
+
+    [Fact]
+    [Invariant("RPT-007")]
+    [Invariant("RPT-004")]
+    public void Reporter_WhenWorkerAckTimesOut_SnapshotExcludesTimedOutWorkerData()
+    {
+        // Worker 0 acks normally with known data.
+        // Worker 1 never acks (simulates stuck worker).
+        // The merged snapshot must contain worker 0's data only.
+        GlobalSnapshot? captured = null;
+        var capturingConsumer = new CapturingSnapshotConsumer(s => captured = s);
+
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var w0 = new WorkerStats();
+        var w1 = new WorkerStats(); // never acks
+
+        // Pre-seed w1's active buffer with data that must NOT appear in the snapshot
+        w1.Active.LinesProcessed = 999;
+
+        // w0 will be driven by the real worker protocol: the coordinator normally calls
+        // AcknowledgeSwapIfRequested. We simulate it with a background thread.
+        var ackThread = new Thread(() =>
+        {
+            while (true)
+            {
+                w0.AcknowledgeSwapIfRequested();
+                Thread.Sleep(5);
+            }
+        })
+        { IsBackground = true };
+        w0.Active.LinesProcessed = 42;
+        ackThread.Start();
+
+        var reporter = new Reporter(
+            new[] { w0, w1 }, bus,
+            topK: 1,
+            interval: TimeSpan.FromMilliseconds(100),
+            ackTimeout: TimeSpan.FromMilliseconds(50),
+            consumers: [capturingConsumer]);
+
+        reporter.Start();
+        Thread.Sleep(500); // allow at least one interval
+        reporter.Stop();
+
+        Assert.NotNull(captured);
+        // w1's 999 lines must not appear; only w0's data (42) is valid
+        Assert.True(captured!.LinesProcessed < 100,
+            $"Expected LinesProcessed < 100 (only w0 data), got {captured.LinesProcessed}. " +
+            "Timed-out worker's stale buffer was incorrectly merged.");
+    }
+
+
+    [Fact]
     [Invariant("RPT-004")]
     public void Reporter_WhenWorkerAckTimesOut_LogsWarningAndContinues()
     {
