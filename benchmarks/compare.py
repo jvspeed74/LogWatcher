@@ -22,14 +22,28 @@ def load_benchmarks(json_path: str) -> dict[str, float]:
     }
 
 
+def load_benchmarks_memory(json_path: str) -> dict[str, int]:
+    """Returns allocated bytes per operation; omits benchmarks with no memory data."""
+    with open(json_path, encoding="utf-8") as f:
+        data = json.load(f)
+    result = {}
+    for b in data.get("Benchmarks", []):
+        alloc = (b.get("Memory") or {}).get("BytesAllocatedPerOperation")
+        if alloc is not None:
+            result[b["FullName"]] = int(alloc)
+    return result
+
+
 def compare_files(baseline_path: str, current_path: str, threshold: float) -> bool:
     """Returns True if all benchmarks pass, False if any regressed."""
     baseline = load_benchmarks(baseline_path)
     current = load_benchmarks(current_path)
+    baseline_mem = load_benchmarks_memory(baseline_path)
+    current_mem = load_benchmarks_memory(current_path)
 
     print(f"\nComparing: {os.path.basename(current_path)}")
-    print(f"{'Benchmark':<70} {'Baseline (ns)':>14} {'Current (ns)':>14} {'Change':>8}")
-    print("-" * 110)
+    print(f"{'Benchmark':<70} {'Baseline (ns)':>14} {'Current (ns)':>14} {'Change':>8}  {'Base (B)':>10} {'Curr (B)':>10} {'Mem Chg':>8}")
+    print("-" * 142)
 
     passed = True
     for name, current_mean in sorted(current.items()):
@@ -42,7 +56,28 @@ def compare_files(baseline_path: str, current_path: str, threshold: float) -> bo
         if pct_change > threshold:
             flag = " *** REGRESSION ***"
             passed = False
-        print(f"{name:<70} {baseline_mean:>14.1f} {current_mean:>14.1f} {pct_change:>+7.1%}{flag}")
+
+        # Memory comparison — only when both sides have data
+        mem_str = ""
+        base_b = baseline_mem.get(name)
+        curr_b = current_mem.get(name)
+        if curr_b is not None and base_b is not None:
+            if base_b == 0:
+                mem_pct_str = "+∞%" if curr_b > 0 else " +0.0%"
+                if curr_b > 0:
+                    flag = flag or " *** REGRESSION ***"
+                    passed = False
+            else:
+                mem_pct = (curr_b - base_b) / base_b
+                mem_pct_str = f"{mem_pct:>+7.1%}"
+                if mem_pct > threshold:
+                    flag = (flag + " *** REGRESSION ***").strip() if not flag else flag
+                    passed = False
+            mem_str = f"  {base_b:>10} {curr_b:>10} {mem_pct_str:>8}"
+        elif curr_b is not None:
+            mem_str = f"  {'N/A':>10} {curr_b:>10} {'NEW':>8}"
+
+        print(f"{name:<70} {baseline_mean:>14.1f} {current_mean:>14.1f} {pct_change:>+7.1%}{mem_str}{flag}")
 
     return passed
 
