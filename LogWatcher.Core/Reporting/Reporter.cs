@@ -148,7 +148,7 @@ namespace LogWatcher.Core.Reporting
             // optional final report on stop
             try
             {
-                var final = BuildSnapshotAndFrame();
+                var final = BuildSnapshotAndFrame(updateBaselines: false);
                 foreach (var c in _consumers)
                     c.OnSnapshot(final, TimeSpan.Zero);
             }
@@ -164,7 +164,7 @@ namespace LogWatcher.Core.Reporting
         /// This method is <c>internal</c> and extracted to allow unit testing of snapshot construction.
         /// </summary>
         /// <returns>The populated <see cref="GlobalSnapshot"/> instance (shared instance reused by the reporter).</returns>
-        internal GlobalSnapshot BuildSnapshotAndFrame()
+        internal GlobalSnapshot BuildSnapshotAndFrame(bool updateBaselines = true)
         {
             _snapshot.ResetForNextMerge(_topK);
             foreach (var w in _workers)
@@ -188,10 +188,13 @@ namespace LogWatcher.Core.Reporting
             _snapshot.Gen0Delta = gen0 - _lastGen0;
             _snapshot.Gen1Delta = gen1 - _lastGen1;
             _snapshot.Gen2Delta = gen2 - _lastGen2;
-            _lastAllocatedBytes = allocatedNow;
-            _lastGen0 = gen0;
-            _lastGen1 = gen1;
-            _lastGen2 = gen2;
+            if (updateBaselines)
+            {
+                _lastAllocatedBytes = allocatedNow;
+                _lastGen0 = gen0;
+                _lastGen1 = gen1;
+                _lastGen2 = gen2;
+            }
 
             _snapshot.FinalizeSnapshot(_topK);
             return _snapshot;

@@ -45,7 +45,7 @@ public sealed class LogWatcherService : BackgroundService
             bus = new BoundedEventBus<FsEvent>(_options.QueueCapacity, _loggerFactory.CreateLogger<BoundedEventBus<FsEvent>>());
             registry = new FileStateRegistry(_loggerFactory.CreateLogger<FileStateRegistry>());
             var tailer = new FileTailer(_loggerFactory.CreateLogger<FileTailer>());
-            processor = new FileProcessor(tailer);
+            processor = new FileProcessor(tailer, _loggerFactory.CreateLogger<FileProcessor>());
             workerStats = new WorkerStats[_options.Workers];
             for (int i = 0; i < workerStats.Length; i++)
                 workerStats[i] = new WorkerStats();
