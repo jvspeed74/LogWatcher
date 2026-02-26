@@ -141,16 +141,6 @@ graph TB
     GS -->|Snapshot| REP
     REP -->|Output| STDOUT["Console Output"]
 
-    style Ingestion fill:#e1f5ff
-    style Backpressure fill:#f3e5f5
-    style FileManagement fill:#fce4ec
-    style Processing fill:#fff3e0
-    style Tailing fill:#fff8e1
-    style Scanning fill:#fff8e1
-    style Parsing fill:#fff8e1
-    style Statistics fill:#f1f8e9
-    style Coordination_ fill:#e0f2f1
-    style Reporting fill:#ede7f6
 ```
 
 ---
