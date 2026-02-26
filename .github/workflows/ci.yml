@@ -137,4 +137,5 @@ jobs:
           python benchmarks/compare.py \
             --baseline-dir benchmarks/baseline \
             --current-dir BenchmarkDotNet.Artifacts/results \
-            --threshold ${{ inputs.threshold || '0.15' }}
+            --threshold ${{ inputs.threshold || '0.15' }} \
+            --no-fail

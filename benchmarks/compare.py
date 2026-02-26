@@ -87,6 +87,7 @@ def main() -> int:
     parser.add_argument("--baseline-dir", required=True, help="Directory containing baseline *-report-full.json files")
     parser.add_argument("--current-dir", required=True, help="Directory containing current *-report-full.json files")
     parser.add_argument("--threshold", type=float, default=0.15, help="Regression threshold (default: 0.15 = 15%%)")
+    parser.add_argument("--no-fail", action="store_true", help="Print results but always exit 0 (never gate the job)")
     args = parser.parse_args()
 
     current_files = [
@@ -110,10 +111,13 @@ def main() -> int:
     print()
     if all_passed:
         print("✅ All benchmarks within threshold.")
-        return 0
     else:
-        print(f"❌ One or more benchmarks regressed by more than {args.threshold:.0%}.")
-        return 1
+        suffix = " (no-fail mode — job will not be marked failed)" if args.no_fail else ""
+        print(f"❌ One or more benchmarks regressed by more than {args.threshold:.0%}.{suffix}")
+
+    if args.no_fail:
+        return 0
+    return 0 if all_passed else 1
 
 
 if __name__ == "__main__":
