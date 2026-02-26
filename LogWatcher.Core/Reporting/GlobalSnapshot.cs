@@ -66,6 +66,18 @@ namespace LogWatcher.Core.Reporting
         /// <summary>Computed P99 latency in milliseconds, or null if no samples.</summary>
         public int? P99 { get; set; }
 
+        // GC metrics (populated by Reporter from baselines captured at start/last interval)
+        /// <summary>Bytes allocated since the last reporting interval.</summary>
+        public long AllocatedBytesDelta { get; set; }
+        /// <summary>Total bytes allocated as of the snapshot time.</summary>
+        public long AllocatedBytesTotal { get; set; }
+        /// <summary>Gen-0 collections since the last reporting interval.</summary>
+        public int Gen0Delta { get; set; }
+        /// <summary>Gen-1 collections since the last reporting interval.</summary>
+        public int Gen1Delta { get; set; }
+        /// <summary>Gen-2 collections since the last reporting interval.</summary>
+        public int Gen2Delta { get; set; }
+
         /// <summary>
         /// Creates a new snapshot and preallocates containers sized for the given top-K capacity.
         /// </summary>
@@ -84,7 +96,7 @@ namespace LogWatcher.Core.Reporting
         /// Resets counters and prepared collections in preparation for the next merge. Preserves reasonable capacity where applicable.
         /// </summary>
         /// <param name="topK">Top-K capacity to prepare for.</param>
-        public void ResetForNextMerge(int topK)  // TODO: Consider parameterizing message dictionary capacity to prevent excessive resizing
+        internal void ResetForNextMerge(int topK)  // TODO: Consider parameterizing message dictionary capacity to prevent excessive resizing
         {
             FsCreated = FsModified = FsDeleted = FsRenamed = 0;
             LinesProcessed = 0;
@@ -113,6 +125,10 @@ namespace LogWatcher.Core.Reporting
 
             TopKMessages.Clear();
             P50 = P95 = P99 = null;
+
+            AllocatedBytesDelta = 0;
+            AllocatedBytesTotal = 0;
+            Gen0Delta = Gen1Delta = Gen2Delta = 0;
         }
 
         /// <summary>
@@ -120,7 +136,7 @@ namespace LogWatcher.Core.Reporting
         /// </summary>
         /// <param name="buf">Worker buffer to merge from. Must not be null.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="buf"/> is null.</exception>
-        public void MergeFrom(WorkerStatsBuffer buf)
+        internal void MergeFrom(WorkerStatsBuffer buf)
         {
             ArgumentNullException.ThrowIfNull(buf);
 
@@ -164,7 +180,7 @@ namespace LogWatcher.Core.Reporting
         /// Finalizes derived values (Top-K and percentiles) based on the current aggregated state.
         /// </summary>
         /// <param name="topK">Number of top messages to compute.</param>
-        public void FinalizeSnapshot(int topK)
+        internal void FinalizeSnapshot(int topK)
         {
             TopKMessages.Clear();
             if (MessageCounts.Count > 0)

@@ -32,7 +32,7 @@ namespace LogWatcher.Core.Statistics
         /// Records a latency sample in milliseconds. Negative values are clamped to bin 0; values greater than 10000 map to the overflow bin.
         /// </summary>
         /// <param name="latencyMs">Latency in milliseconds.</param>
-        public void Add(int latencyMs)
+        internal void Add(int latencyMs)
         {
             int idx;
             if (latencyMs < 0) idx = 0;
@@ -46,7 +46,7 @@ namespace LogWatcher.Core.Statistics
         /// <summary>
         /// Resets the histogram to empty.
         /// </summary>
-        public void Reset()
+        internal void Reset()
         {
             Array.Clear(_bins, 0, _bins.Length);
             _count = 0;
@@ -57,7 +57,7 @@ namespace LogWatcher.Core.Statistics
         /// </summary>
         /// <param name="other">Histogram to merge from; must not be null.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="other"/> is null.</exception>
-        public void MergeFrom(LatencyHistogram other)
+        internal void MergeFrom(LatencyHistogram other)
         {
             ArgumentNullException.ThrowIfNull(other);
 

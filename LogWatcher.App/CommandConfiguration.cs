@@ -1,6 +1,12 @@
 using System.CommandLine;
 using System.CommandLine.Parsing;
 
+using LogWatcher.Core.Reporting;
+
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.App;
 
 /// <summary>
@@ -126,6 +132,13 @@ public static class CommandConfiguration
             }
         });
 
+        // Define --log-level option with short alias -l
+        var logLevelOpt = new Option<LogLevel>("--log-level", new[] { "--log-level", "-l" })
+        {
+            Description = "Minimum log level for LogWatcher output (Trace, Debug, Information, Warning, Error, Critical)",
+            DefaultValueFactory = _ => LogLevel.Warning
+        };
+
         // Build root command
         var rootCommand = new RootCommand("High-performance log file watcher with real-time statistics")
         {
@@ -133,7 +146,8 @@ public static class CommandConfiguration
             workersOpt,
             queueCapacityOpt,
             reportIntervalOpt,
-            topKOpt
+            topKOpt,
+            logLevelOpt
         };
 
         // Register command handler
@@ -144,21 +158,27 @@ public static class CommandConfiguration
             var queueCapacity = parseResult.GetValue(queueCapacityOpt);
             var reportInterval = parseResult.GetValue(reportIntervalOpt);
             var topK = parseResult.GetValue(topKOpt);
+            var logLevel = parseResult.GetValue(logLevelOpt);
 
-            // All validation has already been performed by System.CommandLine validators
-            // Convert relative paths to absolute paths (matching the original CliConfig behavior)
             var absoluteWatchPath = Path.GetFullPath(watchPath);
+            var options = new LogWatcherOptions(absoluteWatchPath, workers, queueCapacity, reportInterval, topK, logLevel);
 
-            // Delegate to ApplicationHost
-            // ApplicationHost.Run() has a try/finally block that ensures ALL cleanup happens:
-            //   - Stops all components (watcher, coordinator, reporter)
-            //   - Disposes resources
-            //   - Returns exit code only AFTER finally block completes
-            var exitCode = ApplicationHost.Run(absoluteWatchPath, workers, queueCapacity, reportInterval, topK);
-
-            // At this point, ALL cleanup is complete (ApplicationHost.Run's finally block has executed)
-            // It's now safe to exit with the appropriate code
-            Environment.Exit(exitCode);
+            Host.CreateDefaultBuilder()
+                .ConfigureLogging(logging =>
+                {
+                    // Suppress noisy Microsoft.Hosting.Lifetime messages
+                    logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Warning);
+                    logging.AddFilter("Microsoft", LogLevel.Warning);
+                    logging.AddFilter("LogWatcher", options.LogLevel);
+                })
+                .ConfigureServices(services =>
+                {
+                    services.AddSingleton(options);
+                    services.AddSingleton<ISnapshotConsumer, ConsoleSnapshotConsumer>();
+                    services.AddHostedService<LogWatcherService>();
+                })
+                .Build()
+                .Run();
         });
 
         return rootCommand;

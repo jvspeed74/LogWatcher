@@ -1,26 +1,23 @@
 using System.Buffers;
 
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.Core.Processing.Tailing
 {
     /// <summary>
     /// Utility to read bytes that have been appended to a file since a given offset.
     /// </summary>
-    public sealed class FileTailer : IFileTailer
+    public sealed partial class FileTailer : IFileTailer
     {
-        // TODO: Consider making chunk size configurable per file type or based on available memory
         public const int DefaultChunkSize = 64 * 1024;
 
-        // TODO: The method signature uses both a `ref` parameter (offset) and an `out` parameter (totalBytesRead),
-        // which produces a complex call site that is easy to misuse. Grouping these into a dedicated result record
-        // or struct would make the contract clearer and harder to call incorrectly.
-        //
-        // TODO: There is no CancellationToken parameter. Long synchronous reads inside the while-loop below
-        // cannot be interrupted by the caller. Consider adding a CancellationToken overload to support cooperative
-        // cancellation in high-throughput or shutdown scenarios.
-        //
-        // TODO: The onChunk delegate creates an inverted (push-based) control flow. Callers cannot use natural
-        // foreach-style iteration, compose with LINQ, or implement backpressure easily. A pull-based API (e.g.,
-        // returning an IEnumerable<ReadOnlyMemory<byte>>) or an async streaming overload would be more composable.
+        private readonly ILogger<FileTailer>? _logger;
+
+        /// <param name="logger">Optional logger for truncation detection.</param>
+        public FileTailer(ILogger<FileTailer>? logger = null)
+        {
+            _logger = logger;
+        }
         /// <summary>
         /// Reads bytes appended to <paramref name="path"/> since <paramref name="offset"/> and invokes <paramref name="onChunk"/> for each chunk read.
         /// The provided <see cref="ReadOnlySpan{Byte}"/> passed to <paramref name="onChunk"/> is only valid for the duration of the callback and must not be stored.
@@ -66,6 +63,7 @@ namespace LogWatcher.Core.Processing.Tailing
                 if (length < offset)
                 {
                     // truncation detected
+                    if (_logger != null) LogTruncationDetected(_logger, path, offset);
                     effectiveOffset = 0;
                     truncated = true;
                 }
@@ -94,6 +92,7 @@ namespace LogWatcher.Core.Processing.Tailing
                 if (totalBytesRead > 0)
                 {
                     offset = effectiveOffset + totalBytesRead;
+                    if (_logger != null) LogReadSome(_logger, path, effectiveOffset, totalBytesRead);
                     return truncated ? TailReadStatus.TruncatedReset : TailReadStatus.ReadSome;
                 }
 
@@ -126,5 +125,11 @@ namespace LogWatcher.Core.Processing.Tailing
                 }
             }
         }
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Truncation detected, offset reset path={Path} oldOffset={OldOffset}")]
+        private static partial void LogTruncationDetected(ILogger logger, string path, long oldOffset);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Read path={Path} offset={Offset} bytes={BytesRead}")]
+        private static partial void LogReadSome(ILogger logger, string path, long offset, int bytesRead);
     }
 }

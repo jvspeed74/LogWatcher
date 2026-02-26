@@ -1,8 +1,10 @@
+using LogWatcher.App;
 using LogWatcher.Core.Backpressure;
 using LogWatcher.Core.Coordination;
 using LogWatcher.Core.Ingestion;
 using LogWatcher.Core.Processing.Parsing;
 using LogWatcher.Core.Reporting;
+using LogWatcher.Tests.Helpers;
 
 namespace LogWatcher.Tests.Integration;
 
@@ -101,7 +103,7 @@ public class ReporterTests
         {
             var bus = new BoundedEventBus<FsEvent>(10);
             var workers = new[] { new WorkerStats() };
-            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(100));
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(100), consumers: [new ConsoleSnapshotConsumer()]);
             reporter.Start();
             Thread.Sleep(1500); // allow at least one interval report
             reporter.Stop();
@@ -131,7 +133,7 @@ public class ReporterTests
             var bus = new BoundedEventBus<FsEvent>(10);
             var workers = new[] { new WorkerStats() };
             // 1-second interval; we stop after 100 ms so the thread exits cleanly within the join timeout
-            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromSeconds(1), ackTimeout: TimeSpan.FromMilliseconds(100));
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromSeconds(1), ackTimeout: TimeSpan.FromMilliseconds(100), consumers: [new ConsoleSnapshotConsumer()]);
             reporter.Start();
             Thread.Sleep(100);
             reporter.Stop(); // must emit final report with elapsed=0.00 after loop exits
@@ -148,12 +150,106 @@ public class ReporterTests
     }
 
     [Fact]
+    [Invariant("RPT-007")]
+    public void BuildSnapshotAndFrame_WithWorkerFilter_OnlyMergesSpecifiedWorkers()
+    {
+        // When workersToMerge is a subset, only those workers' inactive buffers are merged.
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var w0 = new WorkerStats();
+        var w1 = new WorkerStats();
+
+        w0.Active.LinesProcessed = 10;
+        w1.Active.LinesProcessed = 99;
+
+        // Swap both so inactive buffers hold the data
+        w0.RequestSwap(); w0.AcknowledgeSwapIfRequested();
+        w1.RequestSwap(); w1.AcknowledgeSwapIfRequested();
+
+        var reporter = new Reporter(new[] { w0, w1 }, bus);
+
+        // Only pass w0 — w1 should be excluded
+        var snap = reporter.BuildSnapshotAndFrame(workersToMerge: new[] { w0 });
+
+        Assert.Equal(10, snap.LinesProcessed);
+    }
+
+    [Fact]
+    public void BuildSnapshotAndFrame_WithNullFilter_MergesAllWorkers()
+    {
+        // When workersToMerge is null the final-report path must merge all workers.
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var w0 = new WorkerStats();
+        var w1 = new WorkerStats();
+
+        w0.Active.LinesProcessed = 7;
+        w1.Active.LinesProcessed = 3;
+
+        w0.RequestSwap(); w0.AcknowledgeSwapIfRequested();
+        w1.RequestSwap(); w1.AcknowledgeSwapIfRequested();
+
+        var reporter = new Reporter(new[] { w0, w1 }, bus);
+        var snap = reporter.BuildSnapshotAndFrame(workersToMerge: null);
+
+        Assert.Equal(10, snap.LinesProcessed);
+    }
+
+    [Fact]
+    [Invariant("RPT-007")]
+    [Invariant("RPT-004")]
+    public void Reporter_WhenWorkerAckTimesOut_SnapshotExcludesTimedOutWorkerData()
+    {
+        // Worker 0 acks normally with known data.
+        // Worker 1 never acks (simulates stuck worker).
+        // The merged snapshot must contain worker 0's data only.
+        GlobalSnapshot? captured = null;
+        var capturingConsumer = new CapturingSnapshotConsumer(s => captured = s);
+
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var w0 = new WorkerStats();
+        var w1 = new WorkerStats(); // never acks
+
+        // Pre-seed w1's active buffer with data that must NOT appear in the snapshot
+        w1.Active.LinesProcessed = 999;
+
+        // w0 will be driven by the real worker protocol: the coordinator normally calls
+        // AcknowledgeSwapIfRequested. We simulate it with a background thread.
+        var ackThread = new Thread(() =>
+        {
+            while (true)
+            {
+                w0.AcknowledgeSwapIfRequested();
+                Thread.Sleep(5);
+            }
+        })
+        { IsBackground = true };
+        w0.Active.LinesProcessed = 42;
+        ackThread.Start();
+
+        var reporter = new Reporter(
+            new[] { w0, w1 }, bus,
+            topK: 1,
+            interval: TimeSpan.FromMilliseconds(100),
+            ackTimeout: TimeSpan.FromMilliseconds(50),
+            consumers: [capturingConsumer]);
+
+        reporter.Start();
+        Thread.Sleep(500); // allow at least one interval
+        reporter.Stop();
+
+        Assert.NotNull(captured);
+        // w1's 999 lines must not appear; only w0's data (42) is valid
+        Assert.True(captured!.LinesProcessed < 100,
+            $"Expected LinesProcessed < 100 (only w0 data), got {captured.LinesProcessed}. " +
+            "Timed-out worker's stale buffer was incorrectly merged.");
+    }
+
+
+    [Fact]
     [Invariant("RPT-004")]
     public void Reporter_WhenWorkerAckTimesOut_LogsWarningAndContinues()
     {
         // When a worker fails to acknowledge a swap within the timeout the reporter
         // must proceed with available data and log a warning — it must not crash or block.
-        using var errWriter = new StringWriter();
         using var outWriter = new StringWriter();
         var originalOut = Console.Out;
         Console.SetOut(outWriter);
@@ -164,16 +260,15 @@ public class ReporterTests
             // Worker never acknowledges swaps because it never calls AcknowledgeSwapIfRequested
             var workers = new[] { ws };
             // Extremely short ack timeout to force a timeout on every interval.
-            // errWriter is injected directly — avoids Console.Error race conditions across parallel tests.
-            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(1), errorOutput: errWriter);
+            var capturingLogger = new CapturingLogger<Reporter>();
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(1), logger: capturingLogger, consumers: [new ConsoleSnapshotConsumer()]);
             reporter.Start();
             Thread.Sleep(2500); // allow multiple fast intervals with forced ack timeouts
             reporter.Stop();
 
-            var errOutput = errWriter.ToString();
             var stdOutput = outWriter.ToString();
             // A warning must be logged when the ack times out
-            Assert.Contains("timed out", errOutput, StringComparison.OrdinalIgnoreCase);
+            Assert.True(capturingLogger.HasWarning("timed out"), "Expected a warning log about swap timeout");
             // The reporter must still produce output despite the timeout
             Assert.Contains("[REPORT]", stdOutput);
         }
@@ -229,7 +324,7 @@ public class ReporterTests
         {
             var bus = new BoundedEventBus<FsEvent>(10);
             var workers = new[] { new WorkerStats() };
-            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(50));
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(50), consumers: [new ConsoleSnapshotConsumer()]);
 
             // First cycle
             reporter.Start();

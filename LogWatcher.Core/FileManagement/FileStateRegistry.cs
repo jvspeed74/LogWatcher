@@ -1,15 +1,23 @@
 using System.Collections.Concurrent;
 
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.Core.FileManagement;
 
 /// <summary>
 /// Registry of <see cref="FileState"/> objects keyed by file path. Supports concurrent access.
 /// </summary>
-public sealed class FileStateRegistry
+public sealed partial class FileStateRegistry
 {
-    // TODO: Consider adding a cleanup mechanism for orphaned FileState entries when files are no longer being watched
     private readonly ConcurrentDictionary<string, FileState> _states = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, int> _epochs = new(StringComparer.Ordinal);
+    private readonly ILogger<FileStateRegistry>? _logger;
+
+    /// <param name="logger">Optional logger for carry buffer cleanup failures.</param>
+    public FileStateRegistry(ILogger<FileStateRegistry>? logger = null)
+    {
+        _logger = logger;
+    }
 
     /// <summary>
     /// Gets an existing <see cref="FileState"/> for <paramref name="path"/> or creates a new one with a generation based on the current epoch.
@@ -27,6 +35,7 @@ public sealed class FileStateRegistry
                 Carry = new PartialLineBuffer(),
                 Generation = epoch + 1
             };
+            if (_logger != null) LogFileStateCreated(_logger, p, fs.Generation);
             return fs;
         });
     }
@@ -51,15 +60,15 @@ public sealed class FileStateRegistry
     {
         if (_states.TryRemove(path, out var removed))
         {
+            if (_logger != null) LogFileStateFinalized(_logger, path);
             // clear its carry for GC
             try
             {
                 removed.ClearCarry();
             }
-            catch
+            catch (Exception ex)
             {
-                // swallow any errors from clearing fields
-                // TODO: Add structured logging for carry buffer cleanup failures (path, exception details)
+                if (_logger != null) LogCarryCleanupFailure(_logger, path, ex);
             }
         }
 
@@ -71,9 +80,18 @@ public sealed class FileStateRegistry
     /// </summary>
     /// <param name="path">Path to query.</param>
     /// <returns>The current epoch (0 when unknown) for <paramref name="path"/>.</returns>
-    public int GetCurrentEpoch(string path)
+    internal int GetCurrentEpoch(string path)
     {
         _epochs.TryGetValue(path, out var e);
         return e;
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Exception during carry buffer cleanup for path={Path}")]
+    private static partial void LogCarryCleanupFailure(ILogger logger, string path, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "File state created path={Path} generation={Generation}")]
+    private static partial void LogFileStateCreated(ILogger logger, string path, int generation);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "File state finalized path={Path}")]
+    private static partial void LogFileStateFinalized(ILogger logger, string path);
 }

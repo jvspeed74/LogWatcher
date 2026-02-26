@@ -141,4 +141,21 @@ public class FileProcessorTests : IDisposable
             Assert.Single(stats.MessageCounts);
         }
     }
+
+    [Fact]
+    public void ProcessOnce_WithLogger_DoesNotThrow()
+    {
+        var p = MakePath("log_with_logger.log");
+        File.WriteAllText(p, "2023-01-02T03:04:05Z INFO request latency_ms=5\n");
+
+        var fp = new FileProcessor(logger: Microsoft.Extensions.Logging.Abstractions.NullLogger<FileProcessor>.Instance);
+        var state = new FileState();
+
+        lock (state.Gate)
+        {
+            var stats = new WorkerStatsBuffer();
+            fp.ProcessOnce(p, state, stats);
+            Assert.Equal(1, stats.LinesProcessed);
+        }
+    }
 }

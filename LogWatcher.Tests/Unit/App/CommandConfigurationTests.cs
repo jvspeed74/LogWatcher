@@ -1,4 +1,8 @@
+using System.CommandLine;
+
 using LogWatcher.App;
+
+using Microsoft.Extensions.Logging;
 
 namespace LogWatcher.Tests.Unit.App;
 
@@ -77,5 +81,51 @@ public class CommandConfigurationTests : IDisposable
 
         // Help was requested, should have no errors
         Assert.Empty(parseResult.Errors);
+    }
+
+    [Fact]
+    public void Parse_WithLogLevelDebug_Succeeds()
+    {
+        var args = new[] { _tmpDir, "--log-level", "Debug" };
+        var command = CommandConfiguration.CreateRootCommand();
+
+        var parseResult = command.Parse(args);
+
+        Assert.Empty(parseResult.Errors);
+    }
+
+    [Fact]
+    public void Parse_WithShortLogLevel_Succeeds()
+    {
+        var args = new[] { _tmpDir, "-l", "Trace" };
+        var command = CommandConfiguration.CreateRootCommand();
+
+        var parseResult = command.Parse(args);
+
+        Assert.Empty(parseResult.Errors);
+    }
+
+    [Fact]
+    public void Parse_WithInvalidLogLevel_ReturnsErrors()
+    {
+        var args = new[] { _tmpDir, "--log-level", "Verbose" };
+        var command = CommandConfiguration.CreateRootCommand();
+
+        var parseResult = command.Parse(args);
+
+        Assert.NotEmpty(parseResult.Errors);
+    }
+
+    [Fact]
+    public void Parse_DefaultLogLevel_IsWarning()
+    {
+        var args = new[] { _tmpDir };
+        var command = CommandConfiguration.CreateRootCommand();
+        var logLevelOpt = command.Options.OfType<Option<LogLevel>>().Single();
+
+        var parseResult = command.Parse(args);
+        var logLevel = parseResult.GetValue(logLevelOpt);
+
+        Assert.Equal(LogLevel.Warning, logLevel);
     }
 }
