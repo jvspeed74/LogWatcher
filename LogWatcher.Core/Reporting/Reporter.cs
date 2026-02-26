@@ -15,25 +15,25 @@ namespace LogWatcher.Core.Reporting
     /// </summary>
     public sealed partial class Reporter : IDisposable
     {
-        private readonly WorkerStats[] _workers;
-        private readonly BoundedEventBus<FsEvent> _bus;
-        private readonly int _topK;
-        private readonly TimeSpan _interval;
         private readonly TimeSpan _ackTimeout;
-        private readonly ILogger<Reporter>? _logger;
+        private readonly BoundedEventBus<FsEvent> _bus;
         private readonly IReadOnlyList<ISnapshotConsumer> _consumers;
-        private Thread? _thread;
-        private bool _stopping;
-        private PeriodicTimer? _timer;
+        private readonly TimeSpan _interval;
+        private readonly ILogger<Reporter>? _logger;
 
         // snapshot reused across reports
         private readonly GlobalSnapshot _snapshot;
+        private readonly int _topK;
+        private readonly WorkerStats[] _workers;
 
         // GC baselines used to compute deltas between reports
         private long _lastAllocatedBytes;
         private int _lastGen0;
         private int _lastGen1;
         private int _lastGen2;
+        private bool _stopping;
+        private Thread? _thread;
+        private PeriodicTimer? _timer;
 
         /// <summary>
         /// Creates a new <see cref="Reporter"/> instance.
@@ -47,7 +47,8 @@ namespace LogWatcher.Core.Reporting
         /// <param name="consumers">Snapshot consumers invoked after each interval. If null or empty, no consumers are notified.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="workers"/> or <paramref name="bus"/> is null.</exception>
         public Reporter(WorkerStats[] workers, BoundedEventBus<FsEvent> bus, int topK = 10, TimeSpan interval = default,
-            TimeSpan? ackTimeout = null, ILogger<Reporter>? logger = null, IReadOnlyList<ISnapshotConsumer>? consumers = null)
+            TimeSpan? ackTimeout = null, ILogger<Reporter>? logger = null,
+            IReadOnlyList<ISnapshotConsumer>? consumers = null)
         {
             _workers = workers ?? throw new ArgumentNullException(nameof(workers));
             _bus = bus ?? throw new ArgumentNullException(nameof(bus));
@@ -65,6 +66,9 @@ namespace LogWatcher.Core.Reporting
             _lastGen1 = 0;
             _lastGen2 = 0;
         }
+
+        /// <inheritdoc/>
+        public void Dispose() => Stop();
 
         /// <summary>
         /// Starts the reporter's background thread which will periodically collect and notify consumers.
@@ -101,9 +105,6 @@ namespace LogWatcher.Core.Reporting
             }
         }
 
-        /// <inheritdoc/>
-        public void Dispose() => Stop();
-
         private void ReporterLoop()
         {
             var sw = Stopwatch.StartNew();
@@ -138,21 +139,40 @@ namespace LogWatcher.Core.Reporting
                     catch (OperationCanceledException) { }
                 });
                 if (ackedWorkers.Count != _workers.Length)
-                    if (_logger != null) LogSwapTimeout(_logger, ackedWorkers.Count, _workers.Length);
+                    if (_logger != null)
+                        LogSwapTimeout(_logger, ackedWorkers.Count, _workers.Length);
 
                 // Only merge buffers from workers that acknowledged — unacked workers' inactive
                 // buffers have not been swapped and must not be read (RPT-007, CD-005).
+                // TODO: EVENT DRIVEN IMPL TO AVOID COUPLING BETWEEN CONSUMERS AND PRODUCERS
+                // FIXME: CONSUMER CAN CRASH REPORTER THREAD
                 var frame = BuildSnapshotAndFrame(workersToMerge: ackedWorkers);
                 foreach (var c in _consumers)
-                    c.OnSnapshot(frame, elapsed);
+                    try
+                    {
+                        c.OnSnapshot(frame, elapsed);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (_logger != null) LogConsumerError(_logger, ex);
+                    }
             }
 
             // optional final report on stop
             try
             {
+                // TODO: EVENT DRIVEN IMPL TO AVOID COUPLING BETWEEN CONSUMERS AND PRODUCERS
+                // FIXME: CONSUMER CAN CRASH REPORTER THREAD
                 var final = BuildSnapshotAndFrame(updateBaselines: false);
                 foreach (var c in _consumers)
-                    c.OnSnapshot(final, TimeSpan.Zero);
+                    try
+                    {
+                        c.OnSnapshot(final, TimeSpan.Zero);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (_logger != null) LogFinalReportError(_logger, ex);
+                    }
             }
             catch (Exception ex)
             {
@@ -166,7 +186,8 @@ namespace LogWatcher.Core.Reporting
         /// This method is <c>internal</c> and extracted to allow unit testing of snapshot construction.
         /// </summary>
         /// <returns>The populated <see cref="GlobalSnapshot"/> instance (shared instance reused by the reporter).</returns>
-        internal GlobalSnapshot BuildSnapshotAndFrame(bool updateBaselines = true, IReadOnlyList<WorkerStats>? workersToMerge = null)
+        internal GlobalSnapshot BuildSnapshotAndFrame(bool updateBaselines = true,
+            IReadOnlyList<WorkerStats>? workersToMerge = null)
         {
             _snapshot.ResetForNextMerge(_topK);
             var workers = workersToMerge ?? _workers;
@@ -214,5 +235,8 @@ namespace LogWatcher.Core.Reporting
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Report cycle starting workers={Workers}")]
         private static partial void LogReportCycle(ILogger logger, int workers);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "")]
+        private static partial void LogConsumerError(ILogger logger, Exception exception);
     }
 }
