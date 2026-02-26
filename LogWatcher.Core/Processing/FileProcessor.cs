@@ -113,8 +113,8 @@ namespace LogWatcher.Core.Processing
 
             if (_logger != null)
             {
-                int linesProcessed = (int)(stats.LinesProcessed - linesBefore);
-                int malformed = (int)(stats.MalformedLines - malformedBefore);
+                long linesProcessed = stats.LinesProcessed - linesBefore;
+                long malformed = stats.MalformedLines - malformedBefore;
                 LogProcessed(_logger, path, status, totalBytesRead, linesProcessed, malformed);
             }
         }
@@ -147,7 +147,7 @@ namespace LogWatcher.Core.Processing
         }
 
         [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Processed path={Path} status={Status} bytesRead={BytesRead} lines={Lines} malformed={Malformed}")]
-        private static partial void LogProcessed(ILogger logger, string path, TailReadStatus status, int bytesRead, int lines, int malformed);
+        private static partial void LogProcessed(ILogger logger, string path, TailReadStatus status, int bytesRead, long lines, long malformed);
 
         [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "I/O status path={Path} status={Status}")]
         private static partial void LogIoStatus(ILogger logger, string path, string status);
