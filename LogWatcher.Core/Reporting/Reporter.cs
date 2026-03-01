@@ -93,8 +93,8 @@ namespace LogWatcher.Core.Reporting
         /// </summary>
         public void Stop()
         {
-            _timer?.Dispose();
             Volatile.Write(ref _stopping, true);
+            _timer?.Dispose();
             try
             {
                 _thread?.Join(2000);
