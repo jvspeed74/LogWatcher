@@ -4,7 +4,7 @@
 
 LogWatcher is a **real-time log statistics tool** for .NET that watches a local directory for `.log` and `.txt` file
 changes, tail-reads new content, parses log lines, and prints rolling statistics to the console every few seconds.
-It has **no external dependencies** — only the .NET BCL (`System.*`).
+It has a **minimal dependency surface**: primarily the .NET BCL (`System.*`) plus a small set of `Microsoft.Extensions.*` packages (e.g., logging/hosting).
 
 ---
 
