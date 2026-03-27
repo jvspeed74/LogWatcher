@@ -94,4 +94,52 @@ Test example:
     * p50 target=2 => should return 2
     * p95 target=4 => should return 4
 
+## Prefix-Sum Optimization Assessment
+
+### Current implementation
+
+`Percentile(double p)` performs a **linear O(N) scan** over all `BinCount = 10,002` bins (indices 0–10,000 plus the
+overflow bin at 10,001). Each call accumulates a running total until the target rank is reached. At ~3.1 µs per call
+(measured by `Percentile_P99` benchmark on a modern CPU), this works out to roughly 0.3 ns/bin — consistent with a
+sequential, cache-friendly memory scan with no branchy inner logic.
+
+### The tradeoff
+
+A prefix-sum array would allow O(1) or O(log N) percentile lookups after an O(N) build step. Two maintenance
+strategies exist:
+
+| Strategy | `Add` cost | `Percentile` cost |
+|---|---|---|
+| Incremental update | O(N) per add — update all bins ≥ inserted bin | O(1) lookup |
+| Lazy rebuild (dirty flag) | O(1) — unchanged | O(N) rebuild once, then O(1) |
+
+**Incremental update is strictly worse**: `Add` is on the hot path (called for every parsed log line across all worker
+threads). Making each `Add` O(N) would replace a ~1 ns operation with a ~3 µs loop — a 3,000× regression on the
+critical path. This is not viable.
+
+**Lazy rebuild** is the only plausible form. The prefix-sum array would be rebuilt once per reporting interval
+(after merge, before the first `Percentile` call). The cost breakdown at report time is:
+
+| Approach | P50 | P95 | P99 | Total |
+|---|---|---|---|---|
+| Current (3 × linear scan) | 3.1 µs | 3.1 µs | 3.1 µs | ~9.3 µs |
+| Prefix-sum (1 × rebuild + 3 × O(1) lookup) | — | — | — | ~3.1 µs build + ~0 µs × 3 = **~3.1 µs** |
+| **Saving** | | | | **~6.2 µs** |
+
+### Recommendation: **do not implement**
+
+At a 2-second reporting interval (2,000,000 µs), saving 6.2 µs represents **0.0003% of the interval**. This is
+completely negligible in any realistic workload.
+
+The complexity cost is real:
+
+- A second `int[]` of 10,002 elements (~40 KB) must be allocated and kept alive alongside `_bins`.
+- A `bool _prefixDirty` flag must be maintained and checked before every `Percentile` call.
+- Rebuild logic must be correct in the presence of `Reset()` and `MergeFrom()` (both must set the dirty flag).
+- The cognitive overhead increases future maintenance risk for zero measurable user benefit.
+
+**If the reporting interval were ever reduced to less than ~10 ms**, the total percentile scan time (~9.3 µs) would
+represent more than 0.1% of the interval, and re-evaluation would be warranted. At that point, the lazy-rebuild
+strategy could be adopted without touching the `Add` hot path.
+
 ---

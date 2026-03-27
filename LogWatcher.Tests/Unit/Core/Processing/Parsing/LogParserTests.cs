@@ -12,7 +12,10 @@ public class LogParserTests
     }
 
     [Fact]
-    public void Parses_valid_line_with_latency()
+    [Invariant("PRS-001")]
+    [Invariant("PRS-002")]
+    [Invariant("PRS-003")]
+    public void TryParse_WithValidLineAndLatency_ParsesAllFields()
     {
         var line = AsUtf8("2023-01-02T03:04:05Z INFO request_started latency_ms=123");
         Assert.True(LogParser.TryParse(line, out var parsed));
@@ -23,7 +26,8 @@ public class LogParserTests
     }
 
     [Fact]
-    public void Parses_valid_line_without_latency()
+    [Invariant("PRS-001")]
+    public void TryParse_WithValidLineWithoutLatency_ParsesSuccessfully()
     {
         var line = AsUtf8("2023-01-02T03:04:05Z WARN something_happened");
         Assert.True(LogParser.TryParse(line, out var parsed));
@@ -33,14 +37,16 @@ public class LogParserTests
     }
 
     [Fact]
-    public void Malformed_timestamp_returns_false()
+    [Invariant("PRS-001")]
+    [Invariant("PRS-003")]
+    public void TryParse_WithMalformedTimestamp_ReturnsFalse()
     {
         var line = AsUtf8("not-a-ts INFO hi latency_ms=10");
         Assert.False(LogParser.TryParse(line, out _));
     }
 
     [Fact]
-    public void Unknown_level_maps_to_other()
+    public void TryParse_WithUnknownLevel_MapsToOther()
     {
         var line = AsUtf8("2023-01-02T03:04:05Z FOOBAR msg");
         Assert.True(LogParser.TryParse(line, out var parsed));
@@ -48,7 +54,8 @@ public class LogParserTests
     }
 
     [Fact]
-    public void Message_key_is_first_token()
+    [Invariant("PRS-002")]
+    public void TryParse_WithMultipleTokens_UsesFirstTokenAsMessageKey()
     {
         var line = AsUtf8("2023-01-02T03:04:05Z INFO alpha beta gamma latency_ms=1");
         Assert.True(LogParser.TryParse(line, out var parsed));
@@ -56,7 +63,8 @@ public class LogParserTests
     }
 
     [Fact]
-    public void Latency_malformed_is_null_but_parse_succeeds()
+    [Invariant("PRS-001")]
+    public void TryParse_WithMalformedLatency_ParseSucceedsWithNullLatency()
     {
         var line = AsUtf8("2023-01-02T03:04:05Z INFO something latency_ms=abc");
         Assert.True(LogParser.TryParse(line, out var parsed));
@@ -64,7 +72,26 @@ public class LogParserTests
     }
 
     [Fact]
-    public void Handles_offset_or_zulu_timestamps()
+    [Invariant("PRS-004")]
+    public void MessageKey_SpanPointsIntoInputBytes_MustBeConsumedBeforeInputIsReleased()
+    {
+        // ParsedLogLine is a ref struct; MessageKey is a ReadOnlySpan<byte> pointing into the
+        // original input bytes. Callers must consume it within the scope where the input is valid.
+        var input = Encoding.UTF8.GetBytes("2023-01-02T03:04:05Z INFO request_started latency_ms=5");
+
+        string keyConsumedInScope = string.Empty;
+        if (LogParser.TryParse(input, out var parsed))
+        {
+            // Consume MessageKey immediately while input is still in scope
+            keyConsumedInScope = Encoding.UTF8.GetString(parsed.MessageKey);
+        }
+
+        Assert.Equal("request_started", keyConsumedInScope);
+    }
+
+    [Fact]
+    [Invariant("PRS-003")]
+    public void TryParse_WithOffsetOrZuluTimestamp_ParsesBoth()
     {
         var z = AsUtf8("2023-01-02T03:04:05Z INFO zmsg");
         var off = AsUtf8("2023-01-02T03:04:05-06:00 INFO offmsg");

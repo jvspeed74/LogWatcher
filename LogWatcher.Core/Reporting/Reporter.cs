@@ -4,30 +4,36 @@ using LogWatcher.Core.Backpressure;
 using LogWatcher.Core.Coordination;
 using LogWatcher.Core.Ingestion;
 
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.Core.Reporting
 {
     /// <summary>
-    /// Periodically requests worker stats swaps, merges per-worker buffers into a <see cref="GlobalSnapshot"/>, and prints a report.
+    /// Periodically requests worker stats swaps, merges per-worker buffers into a <see cref="GlobalSnapshot"/>,
+    /// and notifies all registered <see cref="ISnapshotConsumer"/> implementations.
     /// The reporter runs on a background thread when <see cref="Start"/> is called and stops after <see cref="Stop"/> is invoked.
     /// </summary>
-    public sealed class Reporter
+    public sealed partial class Reporter : IDisposable
     {
-        private readonly WorkerStats[] _workers;
-        private readonly BoundedEventBus<FsEvent> _bus;
-        private readonly int _topK;
-        private readonly int _intervalSeconds;
         private readonly TimeSpan _ackTimeout;
-        private Thread? _thread;
-        private volatile bool _stopping;
+        private readonly BoundedEventBus<FsEvent> _bus;
+        private readonly IReadOnlyList<ISnapshotConsumer> _consumers;
+        private readonly TimeSpan _interval;
+        private readonly ILogger<Reporter>? _logger;
 
         // snapshot reused across reports
         private readonly GlobalSnapshot _snapshot;
+        private readonly int _topK;
+        private readonly WorkerStats[] _workers;
 
         // GC baselines used to compute deltas between reports
         private long _lastAllocatedBytes;
         private int _lastGen0;
         private int _lastGen1;
         private int _lastGen2;
+        private bool _stopping;
+        private Thread? _thread;
+        private PeriodicTimer? _timer;
 
         /// <summary>
         /// Creates a new <see cref="Reporter"/> instance.
@@ -35,17 +41,23 @@ namespace LogWatcher.Core.Reporting
         /// <param name="workers">Array of per-worker <see cref="WorkerStats"/> instances; used to request swaps and read inactive buffers.</param>
         /// <param name="bus">Event bus whose metrics (published/dropped/depth) are attached to the snapshot.</param>
         /// <param name="topK">Number of top messages to compute in each report; clamped to at least 1.</param>
-        /// <param name="intervalSeconds">Report interval in seconds; clamped to at least 1.</param>
-        /// <param name="ackTimeout">Timeout to wait for worker swap acknowledgements. If null, defaults to max(1s, intervalSeconds).</param>
+        /// <param name="interval">Report interval; clamped to at least 1 second.</param>
+        /// <param name="ackTimeout">Timeout to wait for worker swap acknowledgements. If null, defaults to max(1s, interval * 1.5).</param>
+        /// <param name="logger">Logger for operational warnings. If null, warnings are suppressed.</param>
+        /// <param name="consumers">Snapshot consumers invoked after each interval. If null or empty, no consumers are notified.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="workers"/> or <paramref name="bus"/> is null.</exception>
-        public Reporter(WorkerStats[] workers, BoundedEventBus<FsEvent> bus, int topK = 10, int intervalSeconds = 2, TimeSpan? ackTimeout = null)
+        public Reporter(WorkerStats[] workers, BoundedEventBus<FsEvent> bus, int topK = 10, TimeSpan interval = default,
+            TimeSpan? ackTimeout = null, ILogger<Reporter>? logger = null,
+            IReadOnlyList<ISnapshotConsumer>? consumers = null)
         {
             _workers = workers ?? throw new ArgumentNullException(nameof(workers));
             _bus = bus ?? throw new ArgumentNullException(nameof(bus));
             _topK = Math.Max(1, topK);
-            _intervalSeconds = Math.Max(1, intervalSeconds);
+            _interval = interval == default ? TimeSpan.FromSeconds(2) : interval;
             // default ack timeout is 1.5x the reporting interval to tolerate busy workers
-            _ackTimeout = ackTimeout ?? TimeSpan.FromSeconds(Math.Max(1, _intervalSeconds) * 1.5);
+            _ackTimeout = ackTimeout ?? TimeSpan.FromSeconds(Math.Max(1, _interval.TotalSeconds) * 1.5);
+            _logger = logger;
+            _consumers = consumers ?? [];
             _snapshot = new GlobalSnapshot(_topK);
 
             // initialize baselines to zero here; real baseline captured when Start() is called so tests can call BuildSnapshotAndFrame without timing side-effects
@@ -55,8 +67,11 @@ namespace LogWatcher.Core.Reporting
             _lastGen2 = 0;
         }
 
+        /// <inheritdoc/>
+        public void Dispose() => Stop();
+
         /// <summary>
-        /// Starts the reporter's background thread which will periodically collect and print reports.
+        /// Starts the reporter's background thread which will periodically collect and notify consumers.
         /// Calling <see cref="Start"/> when already started will create a new background thread; callers should ensure it is not started multiple times unintentionally.
         /// </summary>
         public void Start()
@@ -67,7 +82,8 @@ namespace LogWatcher.Core.Reporting
             _lastGen1 = GC.CollectionCount(1);
             _lastGen2 = GC.CollectionCount(2);
 
-            _stopping = false;
+            Volatile.Write(ref _stopping, false);
+            _timer = new PeriodicTimer(_interval);
             _thread = new Thread(ReporterLoop) { IsBackground = true, Name = "reporter" };
             _thread.Start();
         }
@@ -77,14 +93,15 @@ namespace LogWatcher.Core.Reporting
         /// </summary>
         public void Stop()
         {
-            _stopping = true;
+            Volatile.Write(ref _stopping, true);
+            _timer?.Dispose();
             try
             {
                 _thread?.Join(2000);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Reporter.Stop join error: {ex}");
+                if (_logger != null) LogStopJoinError(_logger, ex);
             }
         }
 
@@ -93,78 +110,88 @@ namespace LogWatcher.Core.Reporting
             var sw = Stopwatch.StartNew();
             long lastTicks = sw.ElapsedTicks;
 
-            while (!_stopping)
+            while (!Volatile.Read(ref _stopping))
             {
-                Thread.Sleep(TimeSpan.FromSeconds(_intervalSeconds));
+                if (!_timer!.WaitForNextTickAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult())
+                    break;
 
                 var nowTicks = sw.ElapsedTicks;
-                double elapsedSeconds = (nowTicks - lastTicks) / (double)Stopwatch.Frequency;
+                var elapsed = TimeSpan.FromSeconds((nowTicks - lastTicks) / (double)Stopwatch.Frequency);
                 lastTicks = nowTicks;
 
                 // Swap phase
                 foreach (var w in _workers) w.RequestSwap();
-                // wait for acks with configured timeout — run waits in parallel so one slow worker doesn't consume full timeout for all
+                if (_logger != null) LogReportCycle(_logger, _workers.Length);
+                // Wait for acks in parallel so one slow worker doesn't consume the full timeout for all.
+                // Parallel.ForEach is justified here: workers are independent and sequential waits would
+                // accumulate per-worker timeouts, causing unbounded delay under a slow/stuck worker.
                 using var cts = new CancellationTokenSource(_ackTimeout);
-                try
+                var ackedWorkers = new List<WorkerStats>(_workers.Length);
+                var ackedLock = new object();
+                Parallel.ForEach(_workers, w =>
                 {
-                    var tasks = _workers.Select((w, idx) => Task.Run(() =>
+                    try
                     {
-                        try
-                        {
-                            w.WaitForSwapAck(cts.Token);
-                            return idx; // acked index
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            return -1; // not acked
-                        }
-                    })).ToArray();
-
-                    // Wait for all tasks to complete within the ack timeout
-                    Task.WaitAll(tasks, _ackTimeout);
-
-                    // collect acknowledgements
-                    var ackedIndices = tasks.Where(t => t.IsCompleted && t.Result >= 0).Select(t => t.Result).ToArray();
-                    int acked = ackedIndices.Length;
-                    if (acked != _workers.Length)
-                    {
-                        Console.Error.WriteLine($"Reporter: swap wait timed out (acked={acked} of {_workers.Length}); ackedIndices=[{string.Join(',', ackedIndices)}]");
+                        // ReSharper disable once AccessToDisposedClosure
+                        w.WaitForSwapAck(cts.Token);
+                        lock (ackedLock) ackedWorkers.Add(w);
                     }
-                }
-                catch (Exception ex) when (ex is AggregateException || ex is OperationCanceledException)
-                {
-                    // timeout or task exception; proceed with what we have
-                    Console.Error.WriteLine("Reporter: swap wait timed out");
-                }
+                    catch (OperationCanceledException) { }
+                });
+                if (ackedWorkers.Count != _workers.Length)
+                    if (_logger != null)
+                        LogSwapTimeout(_logger, ackedWorkers.Count, _workers.Length);
 
-                // Merge/Frame build
-                var frame = BuildSnapshotAndFrame();
-
-                // Print
-                PrintReportFrame(frame, elapsedSeconds);
+                // Only merge buffers from workers that acknowledged — unacked workers' inactive
+                // buffers have not been swapped and must not be read (RPT-007, CD-005).
+                // TODO: EVENT DRIVEN IMPL TO AVOID COUPLING BETWEEN CONSUMERS AND PRODUCERS
+                // FIXME: CONSUMER CAN CRASH REPORTER THREAD
+                var frame = BuildSnapshotAndFrame(workersToMerge: ackedWorkers);
+                foreach (var c in _consumers)
+                    try
+                    {
+                        c.OnSnapshot(frame, elapsed);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (_logger != null) LogConsumerError(_logger, ex);
+                    }
             }
 
             // optional final report on stop
             try
             {
-                var final = BuildSnapshotAndFrame();
-                PrintReportFrame(final, 0);
+                // TODO: EVENT DRIVEN IMPL TO AVOID COUPLING BETWEEN CONSUMERS AND PRODUCERS
+                // FIXME: CONSUMER CAN CRASH REPORTER THREAD
+                var final = BuildSnapshotAndFrame(updateBaselines: false);
+                foreach (var c in _consumers)
+                    try
+                    {
+                        c.OnSnapshot(final, TimeSpan.Zero);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (_logger != null) LogFinalReportError(_logger, ex);
+                    }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Reporter final report error: {ex}");
+                if (_logger != null) LogFinalReportError(_logger, ex);
             }
         }
 
         /// <summary>
-        /// Performs the merge of inactive worker buffers into the shared <see cref="GlobalSnapshot"/>, attaches bus metrics and finalizes derived outputs.
+        /// Performs the merge of inactive worker buffers into the shared <see cref="GlobalSnapshot"/>,
+        /// attaches bus and GC metrics, and finalizes derived outputs.
         /// This method is <c>internal</c> and extracted to allow unit testing of snapshot construction.
         /// </summary>
         /// <returns>The populated <see cref="GlobalSnapshot"/> instance (shared instance reused by the reporter).</returns>
-        internal GlobalSnapshot BuildSnapshotAndFrame()
+        internal GlobalSnapshot BuildSnapshotAndFrame(bool updateBaselines = true,
+            IReadOnlyList<WorkerStats>? workersToMerge = null)
         {
             _snapshot.ResetForNextMerge(_topK);
-            foreach (var w in _workers)
+            var workers = workersToMerge ?? _workers;
+            foreach (var w in workers)
             {
                 var buf = w.GetInactiveBufferForMerge();
                 _snapshot.MergeFrom(buf);
@@ -175,58 +202,41 @@ namespace LogWatcher.Core.Reporting
             _snapshot.BusDropped = _bus.DroppedCount;
             _snapshot.BusDepth = _bus.Depth;
 
-            _snapshot.FinalizeSnapshot(_topK);
-            return _snapshot;
-        }
-
-        /// <summary>
-        /// Formats and writes the provided snapshot to <see cref="Console"/> including allocation and GC stats.
-        /// Computes deltas against the last baselines captured in Start/after the previous non-final report.
-        /// </summary>
-        /// <param name="snapshot">Snapshot to print.</param>
-        /// <param name="elapsedSeconds">Elapsed interval in seconds used for the printed report line. Zero indicates a final/no-interval report.</param>
-        private void PrintReportFrame(GlobalSnapshot snapshot, double elapsedSeconds)
-        {
+            // attach GC metrics (deltas computed against baselines from Start() or last interval)
             long allocatedNow = GC.GetTotalAllocatedBytes(false);
             int gen0 = GC.CollectionCount(0);
             int gen1 = GC.CollectionCount(1);
             int gen2 = GC.CollectionCount(2);
-
-            long allocatedDelta = allocatedNow - _lastAllocatedBytes;
-            int gen0Delta = gen0 - _lastGen0;
-            int gen1Delta = gen1 - _lastGen1;
-            int gen2Delta = gen2 - _lastGen2;
-
-            // compute simple per-second rates when we have a positive elapsedSeconds
-            double fsEventsTotal = snapshot.FsCreated + snapshot.FsModified + snapshot.FsDeleted + snapshot.FsRenamed;
-            double lines = snapshot.LinesProcessed;
-            double fsRate = elapsedSeconds > 0 ? fsEventsTotal / elapsedSeconds : 0.0;
-            double linesRate = elapsedSeconds > 0 ? lines / elapsedSeconds : 0.0;
-
-            // TODO: format long message into several short ones
-            // TODO: Add histogram percentiles (P50, P95, P99) to the report output
-            Console.WriteLine(
-                $"[REPORT] elapsed={elapsedSeconds:0.00}s lines={snapshot.LinesProcessed} lines/s={linesRate:0.00} malformed={snapshot.MalformedLines} fs-events={fsEventsTotal} fs/s={fsRate:0.00} busDropped={snapshot.BusDropped} busPublished={snapshot.BusPublished} busDepth={snapshot.BusDepth} allocatedDelta={allocatedDelta} allocated={allocatedNow} gen0Delta={gen0Delta} gen1Delta={gen1Delta} gen2Delta={gen2Delta}");
-
-            if (snapshot.TopKMessages.Count > 0)
-            {
-                // TODO: Verify the message counts are being aggregated correctly across workers
-                Console.WriteLine("TopK:");
-                foreach (var kv in snapshot.TopKMessages)
-                {
-                    Console.WriteLine($"  {kv.Key}: {kv.Count}");
-                }
-            }
-
-            // TODO: Consider whether baseline updates are necessary for final report (elapsedSeconds==0)
-            // update baselines only when this was a regular interval (not the final forced report with elapsedSeconds==0)
-            if (elapsedSeconds > 0)
+            _snapshot.AllocatedBytesDelta = allocatedNow - _lastAllocatedBytes;
+            _snapshot.AllocatedBytesTotal = allocatedNow;
+            _snapshot.Gen0Delta = gen0 - _lastGen0;
+            _snapshot.Gen1Delta = gen1 - _lastGen1;
+            _snapshot.Gen2Delta = gen2 - _lastGen2;
+            if (updateBaselines)
             {
                 _lastAllocatedBytes = allocatedNow;
                 _lastGen0 = gen0;
                 _lastGen1 = gen1;
                 _lastGen2 = gen2;
             }
+
+            _snapshot.FinalizeSnapshot(_topK);
+            return _snapshot;
         }
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Reporter.Stop join error")]
+        private static partial void LogStopJoinError(ILogger logger, Exception exception);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Reporter: swap wait timed out (acked={Acked} of {Total})")]
+        private static partial void LogSwapTimeout(ILogger logger, int acked, int total);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Reporter final report error")]
+        private static partial void LogFinalReportError(ILogger logger, Exception exception);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Report cycle starting workers={Workers}")]
+        private static partial void LogReportCycle(ILogger logger, int workers);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "")]
+        private static partial void LogConsumerError(ILogger logger, Exception exception);
     }
 }

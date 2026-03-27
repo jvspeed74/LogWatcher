@@ -5,6 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
     <ItemGroup>
@@ -28,6 +29,10 @@
         <Folder Include="Unit\"/>
         <Folder Include="Integration\"/>
         <Folder Include="Stress\"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="..\docs\invariants.md"/>
     </ItemGroup>
 
 </Project>

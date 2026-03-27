@@ -12,7 +12,11 @@ namespace LogWatcher.Tests.Stress;
 public class SyntheticStressTests
 {
     [Fact(Timeout = 20000)]
-    public async Task Synthetic_Publisher_Stress_ShouldDropAndNoConcurrentPerPath()
+    [Invariant("BP-001")]
+    [Invariant("BP-002")]
+    [Invariant("BP-003")]
+    [Invariant("PROC-001")]
+    public async Task SyntheticLoad_HighThroughputPublishing_DropsEventsWhenFullAndNoPerPathConcurrency()
     {
         var busCapacity = 20;
         var workers = 6;

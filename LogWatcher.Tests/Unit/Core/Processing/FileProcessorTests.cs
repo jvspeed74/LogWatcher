@@ -31,7 +31,9 @@ public class FileProcessorTests : IDisposable
     }
 
     [Fact]
-    public void ProcessOnce_UpdatesLineAndLevelCounts()
+    [Invariant("PRS-001")]
+    [Invariant("PRS-002")]
+    public void ProcessOnce_WithValidLines_UpdatesLineAndLevelCounts()
     {
         var p = MakePath("p1.log");
         File.WriteAllText(p, "2023-01-02T03:04:05Z INFO key1 latency_ms=10\n2023-01-02T03:04:06Z WARN key2\n");
@@ -52,7 +54,7 @@ public class FileProcessorTests : IDisposable
     }
 
     [Fact]
-    public void ProcessOnce_TailsOnlyNewBytes()
+    public void ProcessOnce_WithAppendedContent_ReadsOnlyNewBytes()
     {
         var p = MakePath("p2.log");
         File.WriteAllText(p, "2023-01-02T03:04:05Z INFO a\n");
@@ -78,7 +80,9 @@ public class FileProcessorTests : IDisposable
     }
 
     [Fact]
-    public void ProcessOnce_HandlesMalformedTimestamp()
+    [Invariant("PRS-001")]
+    [Invariant("PRS-003")]
+    public void ProcessOnce_WithMalformedTimestamp_IncrementsMalformedCount()
     {
         var p = MakePath("p3.log");
         File.WriteAllText(p, "not-a-ts INFO a\n2023-01-02T03:04:05Z INFO b\n");
@@ -97,7 +101,8 @@ public class FileProcessorTests : IDisposable
     }
 
     [Fact]
-    public void ProcessOnce_HandlesMissingLatency()
+    [Invariant("PRS-001")]
+    public void ProcessOnce_WithMissingLatency_DoesNotRecordHistogramEntry()
     {
         var p = MakePath("p4.log");
         File.WriteAllText(p, "2023-01-02T03:04:05Z INFO no_latency\n");
@@ -115,7 +120,9 @@ public class FileProcessorTests : IDisposable
     }
 
     [Fact]
-    public void ProcessOnce_CarryoverAcrossChunks()
+    [Invariant("SCAN-001")]
+    [Invariant("SCAN-004")]
+    public void ProcessOnce_WithLineSplitAcrossChunks_EmitsLineCorrectly()
     {
         var p = MakePath("p5.log");
         // Make a long line > small chunk size (use 32 bytes chunk)
@@ -132,6 +139,23 @@ public class FileProcessorTests : IDisposable
             fp.ProcessOnce(p, state, stats, 32);
             Assert.Equal(1, stats.LinesProcessed);
             Assert.Single(stats.MessageCounts);
+        }
+    }
+
+    [Fact]
+    public void ProcessOnce_WithLogger_DoesNotThrow()
+    {
+        var p = MakePath("log_with_logger.log");
+        File.WriteAllText(p, "2023-01-02T03:04:05Z INFO request latency_ms=5\n");
+
+        var fp = new FileProcessor(logger: Microsoft.Extensions.Logging.Abstractions.NullLogger<FileProcessor>.Instance);
+        var state = new FileState();
+
+        lock (state.Gate)
+        {
+            var stats = new WorkerStatsBuffer();
+            fp.ProcessOnce(p, state, stats);
+            Assert.Equal(1, stats.LinesProcessed);
         }
     }
 }

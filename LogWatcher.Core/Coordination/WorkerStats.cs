@@ -34,15 +34,15 @@ namespace LogWatcher.Core.Coordination
         }
 
         /// <summary>Worker-visible active buffer to record metrics into.</summary>
-        public WorkerStatsBuffer Active => _active;
+        internal WorkerStatsBuffer Active => _active;
 
         /// <summary>Reporter-visible inactive buffer to be merged after a swap. Call <see cref="WaitForSwapAck"/> before reading.</summary>
-        public WorkerStatsBuffer Inactive => _inactive;
+        private WorkerStatsBuffer Inactive => _inactive;
 
         /// <summary>
         /// Reporter requests a swap; the worker will perform swap at its next convenient point and acknowledge it.
         /// </summary>
-        public void RequestSwap()
+        internal void RequestSwap()
         {
             _swapAck.Reset();
             Volatile.Write(ref _swapRequested, 1);
@@ -52,7 +52,7 @@ namespace LogWatcher.Core.Coordination
         /// Blocks until the worker acknowledges a requested swap. Throws if the provided cancellation token is cancelled.
         /// </summary>
         /// <param name="ct">Cancellation token to abort waiting.</param>
-        public void WaitForSwapAck(CancellationToken ct)
+        internal void WaitForSwapAck(CancellationToken ct)
         {
             _swapAck.Wait(ct);
         }
@@ -60,7 +60,7 @@ namespace LogWatcher.Core.Coordination
         /// <summary>
         /// Called by workers at safe points to perform the swap when requested and set the acknowledgment.
         /// </summary>
-        public void AcknowledgeSwapIfRequested()
+        internal void AcknowledgeSwapIfRequested()
         {
             if (Volatile.Read(ref _swapRequested) == 0)
                 return;
@@ -83,7 +83,7 @@ namespace LogWatcher.Core.Coordination
         /// <summary>
         /// Returns the inactive buffer; reporter should call this only after <see cref="WaitForSwapAck"/>.
         /// </summary>
-        public WorkerStatsBuffer GetInactiveBufferForMerge()
+        internal WorkerStatsBuffer GetInactiveBufferForMerge()
         {
             return _inactive;
         }

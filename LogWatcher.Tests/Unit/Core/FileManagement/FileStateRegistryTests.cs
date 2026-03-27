@@ -5,7 +5,58 @@ namespace LogWatcher.Tests.Unit.Core.FileManagement;
 public class FileStateRegistryTests
 {
     [Fact]
-    public void FinalizeDelete_RemovesStateAndIncrementsEpoch()
+    [Invariant("FM-001")]
+    public void GetOrCreate_AfterFinalizeDelete_ReturnsNewStateWithZeroOffset()
+    {
+        var reg = new FileStateRegistry();
+        var path = "/tmp/test_fm001.log";
+
+        var state1 = reg.GetOrCreate(path);
+        lock (state1.Gate) { state1.Offset = 500; }
+
+        reg.FinalizeDelete(path);
+
+        // New state must not share or reuse the old offset
+        var state2 = reg.GetOrCreate(path);
+        Assert.NotSame(state1, state2);
+        lock (state2.Gate)
+        {
+            Assert.Equal(0, state2.Offset);
+        }
+    }
+
+    [Fact]
+    [Invariant("FM-007")]
+    public async Task FileState_OffsetMutatedUnderGate_ProducesConsistentResult()
+    {
+        var state = new FileState();
+        const int threads = 8;
+        const int iterations = 100;
+
+        // Multiple threads incrementing offset while holding gate must produce a consistent total
+        var tasks = Enumerable.Range(0, threads)
+            .Select(_ => Task.Run(() =>
+            {
+                for (int i = 0; i < iterations; i++)
+                {
+                    lock (state.Gate)
+                    {
+                        state.Offset++;
+                    }
+                }
+            }))
+            .ToArray();
+
+        await Task.WhenAll(tasks);
+        Assert.Equal((long)(threads * iterations), state.Offset);
+    }
+
+    [Fact]
+    [Invariant("FM-004")]
+    [Invariant("FM-005")]
+    [Invariant("FM-006")]
+    [Invariant("FM-008")]
+    public void FinalizeDelete_WithExistingState_RemovesStateAndIncrementsEpoch()
     {
         var reg = new FileStateRegistry();
         var fs = reg.GetOrCreate("/tmp/x.log");
@@ -33,7 +84,9 @@ public class FileStateRegistryTests
     }
 
     [Fact]
-    public void MarkDeletePending_ClearsDirty()
+    [Invariant("FM-002")]
+    [Invariant("FM-003")]
+    public void MarkDeletePending_WhenDirtyIsSet_ClearsDirtyFlag()
     {
         var fs = new FileState();
         fs.MarkDirtyIfAllowed();
@@ -44,7 +97,8 @@ public class FileStateRegistryTests
     }
 
     [Fact]
-    public void MarkDirty_DoesNotSetWhenDeletePending()
+    [Invariant("FM-003")]
+    public void MarkDirtyIfAllowed_WhenDeletePending_DoesNotSetDirty()
     {
         var fs = new FileState();
         fs.MarkDeletePending();
@@ -54,7 +108,8 @@ public class FileStateRegistryTests
     }
 
     [Fact]
-    public void Concurrent_GetOrCreate_ReturnsSameInstanceUntilDeleted()
+    [Invariant("FM-009")]
+    public void GetOrCreate_ConcurrentCalls_ReturnsSameInstance()
     {
         var reg = new FileStateRegistry();
         var path = "/tmp/concurrent.log";

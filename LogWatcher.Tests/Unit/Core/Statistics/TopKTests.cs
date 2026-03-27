@@ -5,14 +5,14 @@ namespace LogWatcher.Tests.Unit.Core.Statistics;
 public class TopKTests
 {
     [Fact]
-    public void Empty_ReturnsEmpty()
+    public void ComputeTopK_WhenDictionaryEmpty_ReturnsEmpty()
     {
         var res = TopK.ComputeTopK(new Dictionary<string, int>(), 10);
         Assert.Empty(res);
     }
 
     [Fact]
-    public void KGreaterThanCount_ReturnsAllSorted()
+    public void ComputeTopK_WhenKExceedsCount_ReturnsAllItemsSorted()
     {
         var d = new Dictionary<string, int>
         {
@@ -29,7 +29,7 @@ public class TopKTests
     }
 
     [Fact]
-    public void TieBreak_IsOrdinalAscending()
+    public void ComputeTopK_WithEqualCounts_BreaksTiesByOrdinalAscending()
     {
         var d = new Dictionary<string, int>
         {
@@ -46,7 +46,7 @@ public class TopKTests
     }
 
     [Fact]
-    public void OrdersByCountDescending()
+    public void ComputeTopK_WithMixedCounts_ReturnsTopKByCountDescending()
     {
         var d = new Dictionary<string, int>
         {

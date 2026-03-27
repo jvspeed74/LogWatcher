@@ -6,6 +6,8 @@ using LogWatcher.Core.Processing.Scanning;
 using LogWatcher.Core.Processing.Tailing;
 using LogWatcher.Core.Statistics;
 
+using Microsoft.Extensions.Logging;
+
 namespace LogWatcher.Core.Processing
 {
     /// <summary>
@@ -33,28 +35,27 @@ namespace LogWatcher.Core.Processing
     /// <see cref="Utf8LineScanner"/> and <see cref="LogParser"/> to read appended data,
     /// parse newline-delimited UTF-8 log lines and update a <see cref="WorkerStatsBuffer"/>.
     /// </summary>
-    public sealed class FileProcessor : IFileProcessor
+    public sealed partial class FileProcessor : IFileProcessor
     {
         private readonly IFileTailer _tailer;
+        private readonly ILogger<FileProcessor>? _logger;
 
         /// <summary>
         /// Creates a new <see cref="FileProcessor"/>. An optional <see cref="IFileTailer"/> may be supplied
         /// (useful for tests); when <c>null</c> a default <see cref="FileTailer"/> is used.
         /// </summary>
         /// <param name="tailer">Optional tailer used to read appended bytes from files.</param>
-        public FileProcessor(IFileTailer? tailer = null)
+        /// <param name="logger">Optional logger for per-file-event debug output.</param>
+        public FileProcessor(IFileTailer? tailer = null, ILogger<FileProcessor>? logger = null)
         {
             _tailer = tailer ?? new FileTailer();
+            _logger = logger;
         }
 
         // TODO: ProcessOnce violates the Single Responsibility Principle. It performs five distinct concerns
         // in one method body: (1) file I/O via FileTailer, (2) byte scanning via Utf8LineScanner,
         // (3) log parsing via LogParser, (4) statistics mutation, and (5) I/O error mapping.
         // These responsibilities should be separated so each can be understood, tested, and changed independently.
-        //
-        // TODO: The three levels of nested lambdas (chunk => { Scan(line => { ... }) }) make control flow,
-        // exception propagation, and stat mutation hard to follow. Extracting the inner bodies into named
-        // private methods (e.g., ProcessChunk, ProcessLine) would improve readability and testability.
         //
         /// <summary>
         /// Process whatever is appended right now. Caller must hold <c>state.Gate</c>.
@@ -73,58 +74,31 @@ namespace LogWatcher.Core.Processing
             // Use local offset to avoid advancing state.Offset until processing completes.
             long localOffset = state.Offset;
 
-            TailReadStatus status = _tailer.ReadAppended(path, ref localOffset, chunk =>
-            {
-                // For each chunk, run the UTF8 scanner using state's carry buffer
-                Utf8LineScanner.Scan(chunk, ref state.Carry, line =>
-                {
-                    // For each complete line
-                    stats.LinesProcessed++;
+            long linesBefore = stats.LinesProcessed;
+            long malformedBefore = stats.MalformedLines;
 
-                    if (!LogParser.TryParse(line, out var parsed))
-                    {
-                        stats.MalformedLines++;
-                        return;
-                    }
-
-                    // level counts
-                    stats.IncrementLevel(parsed.Level);
-
-                    // message key to string
-                    // TODO: Encoding.UTF8.GetString allocates a new string for every line with a non-empty message key.
-                    // In a high-throughput scenario (many lines per second across many files) this creates sustained
-                    // GC pressure. Consider an interning strategy (e.g., a ConcurrentDictionary<string,string> keyed
-                    // on the raw UTF-8 bytes via a custom comparer) or using MemoryMarshal to avoid the allocation.
-                    string key = parsed.MessageKey.IsEmpty ? string.Empty : Encoding.UTF8.GetString(parsed.MessageKey);
-                    if (stats.MessageCounts.TryGetValue(key, out var c)) stats.MessageCounts[key] = c + 1;
-                    else stats.MessageCounts[key] = 1;
-
-                    // latency
-                    if (parsed.LatencyMs is { } v)
-                    {
-                        stats.Histogram.Add(v);
-                    }
-                });
-            }, out var totalBytesRead, chunkSize);
+            TailReadStatus status = _tailer.ReadAppended(path, ref localOffset,
+                chunk => ProcessChunk(chunk, state, stats),
+                out var totalBytesRead, chunkSize);
 
             // handle status counters
-            // TODO: The stat mutations inside the lambda closures above (stats.LinesProcessed++, stats.MalformedLines++,
-            // etc.) happen deep inside anonymous callbacks with no clear boundary. This makes it difficult to add
-            // tracing, intercept individual line processing, or write tests that assert on per-line behavior without
-            // exercising the full I/O pipeline. Extracting processing logic into named private methods would help.
             switch (status)
             {
                 case TailReadStatus.FileNotFound:
                     stats.FileNotFoundCount++;
+                    if (_logger != null) LogIoStatus(_logger, path, "FileNotFound");
                     break;
                 case TailReadStatus.AccessDenied:
                     stats.AccessDeniedCount++;
+                    if (_logger != null) LogIoStatus(_logger, path, "AccessDenied");
                     break;
                 case TailReadStatus.IoError:
                     stats.IoExceptionCount++;
+                    if (_logger != null) LogIoStatus(_logger, path, "IoError");
                     break;
                 case TailReadStatus.TruncatedReset:
                     stats.TruncationResetCount++;
+                    if (_logger != null) LogIoStatus(_logger, path, "TruncatedReset");
                     break;
                 case TailReadStatus.NoData:
                 case TailReadStatus.ReadSome:
@@ -136,6 +110,46 @@ namespace LogWatcher.Core.Processing
             {
                 state.Offset = localOffset;
             }
+
+            if (_logger != null)
+            {
+                long linesProcessed = stats.LinesProcessed - linesBefore;
+                long malformed = stats.MalformedLines - malformedBefore;
+                LogProcessed(_logger, path, status, totalBytesRead, linesProcessed, malformed);
+            }
         }
+
+        private static void ProcessChunk(ReadOnlySpan<byte> chunk, FileState state, WorkerStatsBuffer stats)
+            => Utf8LineScanner.Scan(chunk, ref state.Carry, line => ProcessLine(line, stats));
+
+        private static void ProcessLine(ReadOnlySpan<byte> line, WorkerStatsBuffer stats)
+        {
+            stats.LinesProcessed++;
+
+            if (!LogParser.TryParse(line, out var parsed))
+            {
+                stats.MalformedLines++;
+                return;
+            }
+
+            stats.IncrementLevel(parsed.Level);
+
+            // TODO: Encoding.UTF8.GetString allocates a new string for every line with a non-empty message key.
+            // In a high-throughput scenario (many lines per second across many files) this creates sustained
+            // GC pressure. Consider an interning strategy (e.g., a ConcurrentDictionary<string,string> keyed
+            // on the raw UTF-8 bytes via a custom comparer) or using MemoryMarshal to avoid the allocation.
+            string key = parsed.MessageKey.IsEmpty ? string.Empty : Encoding.UTF8.GetString(parsed.MessageKey);
+            if (stats.MessageCounts.TryGetValue(key, out var c)) stats.MessageCounts[key] = c + 1;
+            else stats.MessageCounts[key] = 1;
+
+            if (parsed.LatencyMs is { } v)
+                stats.Histogram.Add(v);
+        }
+
+        [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Processed path={Path} status={Status} bytesRead={BytesRead} lines={Lines} malformed={Malformed}")]
+        private static partial void LogProcessed(ILogger logger, string path, TailReadStatus status, int bytesRead, long lines, long malformed);
+
+        [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "I/O status path={Path} status={Status}")]
+        private static partial void LogIoStatus(ILogger logger, string path, string status);
     }
 }

@@ -1,4 +1,8 @@
+using System.CommandLine;
+
 using LogWatcher.App;
+
+using Microsoft.Extensions.Logging;
 
 namespace LogWatcher.Tests.Unit.App;
 
@@ -24,7 +28,7 @@ public class CommandConfigurationTests : IDisposable
     }
 
     [Fact]
-    public void Parse_DefaultsAndPositional_Works()
+    public void Parse_WithDirectoryArgument_Succeeds()
     {
         var args = new[] { _tmpDir };
         var command = CommandConfiguration.CreateRootCommand();
@@ -35,7 +39,7 @@ public class CommandConfigurationTests : IDisposable
     }
 
     [Fact]
-    public void Parse_AllOptions_Works()
+    public void Parse_WithAllOptions_Succeeds()
     {
         var args = new[] { _tmpDir, "--workers", "3", "-q", "500", "-r", "5", "-k", "7" };
         var command = CommandConfiguration.CreateRootCommand();
@@ -46,7 +50,7 @@ public class CommandConfigurationTests : IDisposable
     }
 
     [Fact]
-    public void Parse_MissingPath_Fails()
+    public void Parse_WithMissingPath_ReturnsErrors()
     {
         var args = Array.Empty<string>();
         var command = CommandConfiguration.CreateRootCommand();
@@ -57,7 +61,7 @@ public class CommandConfigurationTests : IDisposable
     }
 
     [Fact]
-    public void Parse_InvalidNumber_Fails()
+    public void Parse_WithInvalidNumber_ReturnsErrors()
     {
         var args = new[] { _tmpDir, "--workers", "notanumber" };
         var command = CommandConfiguration.CreateRootCommand();
@@ -68,7 +72,7 @@ public class CommandConfigurationTests : IDisposable
     }
 
     [Fact]
-    public void Parse_HelpRequested_ShowsHelp()
+    public void Parse_WhenHelpRequested_ReturnsNoErrors()
     {
         var args = new[] { "--help" };
         var command = CommandConfiguration.CreateRootCommand();
@@ -77,5 +81,51 @@ public class CommandConfigurationTests : IDisposable
 
         // Help was requested, should have no errors
         Assert.Empty(parseResult.Errors);
+    }
+
+    [Fact]
+    public void Parse_WithLogLevelDebug_Succeeds()
+    {
+        var args = new[] { _tmpDir, "--log-level", "Debug" };
+        var command = CommandConfiguration.CreateRootCommand();
+
+        var parseResult = command.Parse(args);
+
+        Assert.Empty(parseResult.Errors);
+    }
+
+    [Fact]
+    public void Parse_WithShortLogLevel_Succeeds()
+    {
+        var args = new[] { _tmpDir, "-l", "Trace" };
+        var command = CommandConfiguration.CreateRootCommand();
+
+        var parseResult = command.Parse(args);
+
+        Assert.Empty(parseResult.Errors);
+    }
+
+    [Fact]
+    public void Parse_WithInvalidLogLevel_ReturnsErrors()
+    {
+        var args = new[] { _tmpDir, "--log-level", "Verbose" };
+        var command = CommandConfiguration.CreateRootCommand();
+
+        var parseResult = command.Parse(args);
+
+        Assert.NotEmpty(parseResult.Errors);
+    }
+
+    [Fact]
+    public void Parse_DefaultLogLevel_IsWarning()
+    {
+        var args = new[] { _tmpDir };
+        var command = CommandConfiguration.CreateRootCommand();
+        var logLevelOpt = command.Options.OfType<Option<LogLevel>>().Single();
+
+        var parseResult = command.Parse(args);
+        var logLevel = parseResult.GetValue(logLevelOpt);
+
+        Assert.Equal(LogLevel.Warning, logLevel);
     }
 }

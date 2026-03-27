@@ -1,4 +1,4 @@
-using System.Globalization;
+using System.Buffers.Text;
 using System.Text;
 
 namespace LogWatcher.Core.Processing.Parsing
@@ -36,18 +36,7 @@ namespace LogWatcher.Core.Processing.Parsing
     /// </summary>
     public static class LogParser
     {
-        private static readonly string[] IsoFormats = new[]
-        {
-            "yyyy-MM-ddTHH:mm:ssK",
-            "yyyy-MM-ddTHH:mm:ss.fffK",
-            "yyyy-MM-ddTHH:mm:ss.fffffffK"
-        };
-
-        private static ReadOnlySpan<byte> LatencyPrefix => new byte[]
-        {
-            (byte)'l', (byte)'a', (byte)'t', (byte)'e', (byte)'n', (byte)'c', (byte)'y', (byte)'_', (byte)'m',
-            (byte)'s', (byte)'='
-        };
+        private static ReadOnlySpan<byte> LatencyPrefix => "latency_ms="u8;
 
         /// <summary>
         /// Attempts to parse a single UTF‑8 encoded log line into a <see cref="ParsedLogLine"/> view.
@@ -59,12 +48,14 @@ namespace LogWatcher.Core.Processing.Parsing
         {
             parsed = default;
 
-            // 1. Tokenization: find first and second spaces
-            int s1 = IndexOfByte(line, (byte)' ');
+            // 1. Tokenization: find first and second spaces to isolate the three fixed fields.
+            //    Line format: "<timestamp> <level> <message...>"
+            int s1 = line.IndexOf((byte)' ');
             if (s1 == -1) return false;
-            int s2 = IndexOfByte(line.Slice(s1 + 1), (byte)' ');
+            int s2 = line.Slice(s1 + 1).IndexOf((byte)' ');
             if (s2 == -1) return false;
-            s2 = s2 + s1 + 1; // adjust to original span
+            // s2 was found relative to the slice starting at s1+1; rebase it to the original span.
+            s2 = s2 + s1 + 1;
 
             var timestampBytes = line.Slice(0, s1);
             var levelBytes = line.Slice(s1 + 1, s2 - (s1 + 1));
@@ -72,17 +63,11 @@ namespace LogWatcher.Core.Processing.Parsing
             ReadOnlySpan<byte> messageSpan =
                 messageStart < line.Length ? line.Slice(messageStart) : ReadOnlySpan<byte>.Empty;
 
-            // 2. Parse timestamp (strict ISO-8601)
-            string tsString = Encoding.UTF8.GetString(timestampBytes);
-            // TODO: Consider caching UTF8 decoder or using Utf8Parser to avoid allocations
-            if (!DateTimeOffset.TryParseExact(tsString, IsoFormats, CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dto))
-            {
-                parsed = default;
+            // 2. Parse timestamp (strict ISO-8601, zero-allocation span-based parser)
+            if (!TryParseTimestamp(timestampBytes, out DateTimeOffset dto))
                 return false;
-            }
 
-            // 3. Parse level without allocation (case-insensitive ASCII)
+            // 3. Parse level (case-insensitive, zero-allocation)
             var level = ParseLevel(levelBytes);
 
             // 4. Extract message key (first token of messageSpan)
@@ -93,45 +78,22 @@ namespace LogWatcher.Core.Processing.Parsing
             }
             else
             {
-                int firstSpaceInMsg = IndexOfByte(messageSpan, (byte)' ');
-                if (firstSpaceInMsg == -1)
-                    messageKey = messageSpan;
-                else
-                    messageKey = messageSpan.Slice(0, firstSpaceInMsg);
+                int firstSpaceInMsg = messageSpan.IndexOf((byte)' ');
+                messageKey = firstSpaceInMsg == -1 ? messageSpan : messageSpan.Slice(0, firstSpaceInMsg);
             }
 
-            // 5. Extract latency
+            // 5. Extract latency — search the entire line (not just the message field) because
+            //    latency_ms= may appear anywhere after the level token. Missing or unparseable
+            //    values are silently ignored; they never mark the line malformed (PRS-001).
             int? latency = null;
-            int idx = IndexOfSubsequence(line, LatencyPrefix);
+            int idx = line.IndexOf(LatencyPrefix);
             if (idx >= 0)
             {
                 int valueStart = idx + LatencyPrefix.Length;
-                if (valueStart < line.Length)
+                if (valueStart < line.Length &&
+                    Utf8Parser.TryParse(line.Slice(valueStart), out int latencyValue, out _))
                 {
-                    var valSpan = line.Slice(valueStart);
-                    // parse consecutive digits
-                    int i = 0;
-                    long acc = 0;
-                    bool any = false;
-                    while (i < valSpan.Length)
-                    {
-                        byte b = valSpan[i];
-                        if (b < (byte)'0' || b > (byte)'9') break;
-                        any = true;
-                        acc = acc * 10 + (b - (byte)'0');
-                        if (acc > int.MaxValue)
-                        {
-                            any = false;
-                            break;
-                        }
-
-                        i++;
-                    }
-
-                    if (any && i > 0)
-                    {
-                        latency = (int)acc;
-                    }
+                    latency = latencyValue;
                 }
             }
 
@@ -139,71 +101,136 @@ namespace LogWatcher.Core.Processing.Parsing
             return true;
         }
 
-        private static int IndexOfByte(ReadOnlySpan<byte> span, byte value)
+        /// <summary>
+        /// Parses a strict ISO-8601 timestamp from UTF-8 bytes without any heap allocation.
+        /// Accepted formats: <c>yyyy-MM-ddTHH:mm:ssZ</c>, <c>yyyy-MM-ddTHH:mm:ss.f+Z</c>,
+        /// <c>yyyy-MM-ddTHH:mm:ss±HH:MM</c>, <c>yyyy-MM-ddTHH:mm:ss.f+±HH:MM</c>.
+        /// The result is always adjusted to UTC (PRS-003).
+        /// </summary>
+        private static bool TryParseTimestamp(ReadOnlySpan<byte> span, out DateTimeOffset result)
         {
-            // FIXME: Replace with ReadOnlySpan<byte>.IndexOf() for better performance
-            // The built-in IndexOf uses vectorized operations on supported platforms
-            for (int i = 0; i < span.Length; i++)
-                if (span[i] == value)
-                    return i;
-            return -1;
-        }
+            result = default;
 
-        private static LogLevel ParseLevel(ReadOnlySpan<byte> span)
-        {
-            if (span.Length == 0) return LogLevel.Other;
+            // Minimum length: yyyy-MM-ddTHH:mm:ssZ = 20 chars
+            if (span.Length < 20) return false;
 
-            // compare against known levels
-            if (EqualsIgnoreCaseAscii(span, "INFO")) return LogLevel.Info;
-            if (EqualsIgnoreCaseAscii(span, "WARN")) return LogLevel.Warn;
-            if (EqualsIgnoreCaseAscii(span, "ERROR")) return LogLevel.Error;
-            if (EqualsIgnoreCaseAscii(span, "DEBUG")) return LogLevel.Debug;
+            if (!TryParseDigits4(span, 0, out int year)) return false;
+            if (span[4] != (byte)'-') return false;
+            if (!TryParseDigits2(span, 5, out int month)) return false;
+            if (span[7] != (byte)'-') return false;
+            if (!TryParseDigits2(span, 8, out int day)) return false;
+            if (span[10] != (byte)'T') return false;
+            if (!TryParseDigits2(span, 11, out int hour)) return false;
+            if (span[13] != (byte)':') return false;
+            if (!TryParseDigits2(span, 14, out int minute)) return false;
+            if (span[16] != (byte)':') return false;
+            if (!TryParseDigits2(span, 17, out int second)) return false;
 
-            return LogLevel.Other;
-        }
+            int pos = 19;
+            int millisecond = 0;
 
-        private static bool EqualsIgnoreCaseAscii(ReadOnlySpan<byte> left, string right)
-        {
-            if (left.Length != right.Length) return false;
-            for (int i = 0; i < left.Length; i++)
+            // Optional fractional seconds
+            if (pos < span.Length && span[pos] == (byte)'.')
             {
-                byte lb = left[i];
-                char rc = right[i];
-                // normalize lb to upper-case ASCII
-                if (lb >= (byte)'a' && lb <= (byte)'z') lb = (byte)(lb - 32);
-                if (lb != (byte)rc) return false;
+                pos++;
+                int fracStart = pos;
+                while (pos < span.Length && span[pos] >= (byte)'0' && span[pos] <= (byte)'9')
+                    pos++;
+                int fracLen = pos - fracStart;
+                if (fracLen == 0) return false; // '.' must be followed by at least one digit
+
+                // Truncate to three significant digits (millisecond precision), then left-pad
+                // shorter fractions with trailing zeros so that ".1" → 100 ms, ".12" → 120 ms,
+                // ".123" → 123 ms, ".1234" → 123 ms (sub-millisecond precision is discarded).
+                int ms = 0;
+                int take = fracLen < 3 ? fracLen : 3;
+                for (int i = 0; i < take; i++)
+                    ms = ms * 10 + (span[fracStart + i] - (byte)'0');
+                // Pad to millisecond precision when fewer than three digits were present
+                for (int i = fracLen; i < 3; i++)
+                    ms *= 10;
+                millisecond = ms;
+            }
+
+            if (pos >= span.Length) return false;
+
+            TimeSpan offset;
+            byte tz = span[pos];
+            if (tz == (byte)'Z')
+            {
+                pos++;
+                offset = TimeSpan.Zero;
+            }
+            else if (tz == (byte)'+' || tz == (byte)'-')
+            {
+                // ±HH:MM — needs 6 bytes: sign + 2 digits + ':' + 2 digits
+                if (pos + 6 > span.Length) return false;
+                if (!TryParseDigits2(span, pos + 1, out int offHour)) return false;
+                if (span[pos + 3] != (byte)':') return false;
+                if (!TryParseDigits2(span, pos + 4, out int offMin)) return false;
+                offset = new TimeSpan(offHour, offMin, 0);
+                if (tz == (byte)'-') offset = -offset;
+                pos += 6;
+            }
+            else
+            {
+                return false;
+            }
+
+            // Strict ISO-8601: no trailing characters allowed
+            if (pos != span.Length) return false;
+
+            // Range-check fields that the DateTimeOffset constructor does not guard cheaply.
+            // These catches the most common invalid values without paying exception overhead;
+            // the try/catch below handles the residual calendar-specific invalids (e.g. Feb 30).
+            if (month < 1 || month > 12) return false;
+            if (day < 1 || day > 31) return false;
+            if (hour > 23 || minute > 59 || second > 59) return false;
+
+            try
+            {
+                result = new DateTimeOffset(year, month, day, hour, minute, second, millisecond, offset)
+                    .ToUniversalTime();
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // Catches invalid calendar combinations (e.g. Feb 30) and out-of-range offsets
+                return false;
             }
 
             return true;
         }
 
-        private static int IndexOfSubsequence(ReadOnlySpan<byte> haystack, ReadOnlySpan<byte> needle)
+        private static bool TryParseDigits2(ReadOnlySpan<byte> span, int pos, out int value)
         {
-            // TODO: Consider using Boyer-Moore or other efficient substring search algorithm for better performance
-            // Current naive implementation has O(n*m) complexity
-            if (needle.Length == 0) return 0;
-            if (needle.Length > haystack.Length) return -1;
+            value = 0;
+            // HACK: Slicing to exactly 2 bytes before calling Utf8Parser is intentional.
+            // Utf8Parser stops at the first non-digit and returns the count of bytes consumed,
+            // so passing an unbounded slice would silently accept "1:" as the value 1 (consumed=1).
+            // Capping the slice to 2 and asserting consumed==2 enforces exact-width parsing
+            // with no per-byte branching, keeping the hot timestamp path branchless and allocation-free.
+            return pos + 2 <= span.Length
+                && Utf8Parser.TryParse(span.Slice(pos, 2), out value, out int consumed)
+                && consumed == 2;
+        }
 
-            for (int i = 0; i <= haystack.Length - needle.Length; i++)
-            {
-                bool ok = true;
-                for (int j = 0; j < needle.Length; j++)
-                {
-                    byte a = haystack[i + j];
-                    byte b = needle[j];
-                    // case-insensitive match for latency prefix (we stored lower-case)
-                    if (a >= (byte)'A' && a <= (byte)'Z') a = (byte)(a + 32);
-                    if (a != b)
-                    {
-                        ok = false;
-                        break;
-                    }
-                }
+        private static bool TryParseDigits4(ReadOnlySpan<byte> span, int pos, out int value)
+        {
+            value = 0;
+            // HACK: Same fixed-slice technique as TryParseDigits2 — slice to exactly 4 bytes so
+            // Utf8Parser cannot over-consume and the consumed==4 assertion enforces exact width.
+            return pos + 4 <= span.Length
+                && Utf8Parser.TryParse(span.Slice(pos, 4), out value, out int consumed)
+                && consumed == 4;
+        }
 
-                if (ok) return i;
-            }
-
-            return -1;
+        private static LogLevel ParseLevel(ReadOnlySpan<byte> span)
+        {
+            if (Ascii.EqualsIgnoreCase(span, "INFO"u8)) return LogLevel.Info;
+            if (Ascii.EqualsIgnoreCase(span, "WARN"u8)) return LogLevel.Warn;
+            if (Ascii.EqualsIgnoreCase(span, "ERROR"u8)) return LogLevel.Error;
+            if (Ascii.EqualsIgnoreCase(span, "DEBUG"u8)) return LogLevel.Debug;
+            return LogLevel.Other;
         }
     }
 }

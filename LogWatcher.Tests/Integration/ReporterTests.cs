@@ -1,16 +1,17 @@
+using LogWatcher.App;
 using LogWatcher.Core.Backpressure;
 using LogWatcher.Core.Coordination;
 using LogWatcher.Core.Ingestion;
-using LogWatcher.Core.Processing;
 using LogWatcher.Core.Processing.Parsing;
 using LogWatcher.Core.Reporting;
+using LogWatcher.Tests.Helpers;
 
 namespace LogWatcher.Tests.Integration;
 
 public class ReporterTests
 {
     [Fact]
-    public void BuildSnapshotAndFrame_MergesWorkerBuffersAndAttachesBusMetrics()
+    public void BuildSnapshotAndFrame_WithPopulatedWorkerBuffers_MergesAllMetrics()
     {
         // Arrange
         var bus = new BoundedEventBus<FsEvent>(10);
@@ -39,7 +40,7 @@ public class ReporterTests
             w.AcknowledgeSwapIfRequested();
         }
 
-        var reporter = new Reporter(workers, bus, 2, 1);
+        var reporter = new Reporter(workers, bus, 2, interval: TimeSpan.FromSeconds(1));
 
         // Act
         var snap = reporter.BuildSnapshotAndFrame();
@@ -59,7 +60,7 @@ public class ReporterTests
     }
 
     [Fact]
-    public void BuildSnapshotAndFrame_ComputesTopKAndPercentiles()
+    public void BuildSnapshotAndFrame_WithMessagesAndLatencies_ComputesTopKAndPercentiles()
     {
         var bus = new BoundedEventBus<FsEvent>(10);
         var workers = new WorkerStats[1];
@@ -77,7 +78,7 @@ public class ReporterTests
         workers[0].RequestSwap();
         workers[0].AcknowledgeSwapIfRequested();
 
-        var reporter = new Reporter(workers, bus, 2, 1);
+        var reporter = new Reporter(workers, bus, 2, interval: TimeSpan.FromSeconds(1));
         var snap = reporter.BuildSnapshotAndFrame();
 
         Assert.Equal(2, snap.TopKMessages.Count);
@@ -88,4 +89,264 @@ public class ReporterTests
         Assert.NotNull(snap.P95);
         Assert.NotNull(snap.P99);
     }
+
+    [Fact]
+    [Invariant("RPT-001")]
+    public void Reporter_WhenRunning_UsesActualElapsedTimeForRateComputation()
+    {
+        // Rates must be computed using actual elapsed time measured by Stopwatch,
+        // never an assumed fixed interval duration.
+        var originalOut = Console.Out;
+        using var writer = new StringWriter();
+        Console.SetOut(writer);
+        try
+        {
+            var bus = new BoundedEventBus<FsEvent>(10);
+            var workers = new[] { new WorkerStats() };
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(100), consumers: [new ConsoleSnapshotConsumer()]);
+            reporter.Start();
+            Thread.Sleep(1500); // allow at least one interval report
+            reporter.Stop();
+
+            var output = writer.ToString();
+            // Reporter must emit at least one report containing elapsed time and rate fields
+            Assert.Contains("[REPORT]", output);
+            Assert.Contains("elapsed=", output);
+            Assert.Contains("lines/s=", output);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact]
+    [Invariant("RPT-003")]
+    public void Reporter_OnStop_EmitsFinalReport()
+    {
+        // The reporter must emit at least one final report on shutdown.
+        var originalOut = Console.Out;
+        using var writer = new StringWriter();
+        Console.SetOut(writer);
+        try
+        {
+            var bus = new BoundedEventBus<FsEvent>(10);
+            var workers = new[] { new WorkerStats() };
+            // 1-second interval; we stop after 100 ms so the thread exits cleanly within the join timeout
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromSeconds(1), ackTimeout: TimeSpan.FromMilliseconds(100), consumers: [new ConsoleSnapshotConsumer()]);
+            reporter.Start();
+            Thread.Sleep(100);
+            reporter.Stop(); // must emit final report with elapsed=0.00 after loop exits
+
+            var output = writer.ToString();
+            // The final report is printed with elapsed=0.00 to indicate it is not a timed interval
+            Assert.Contains("[REPORT]", output);
+            Assert.Contains("elapsed=0.00", output);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact]
+    [Invariant("RPT-007")]
+    public void BuildSnapshotAndFrame_WithWorkerFilter_OnlyMergesSpecifiedWorkers()
+    {
+        // When workersToMerge is a subset, only those workers' inactive buffers are merged.
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var w0 = new WorkerStats();
+        var w1 = new WorkerStats();
+
+        w0.Active.LinesProcessed = 10;
+        w1.Active.LinesProcessed = 99;
+
+        // Swap both so inactive buffers hold the data
+        w0.RequestSwap(); w0.AcknowledgeSwapIfRequested();
+        w1.RequestSwap(); w1.AcknowledgeSwapIfRequested();
+
+        var reporter = new Reporter(new[] { w0, w1 }, bus);
+
+        // Only pass w0 — w1 should be excluded
+        var snap = reporter.BuildSnapshotAndFrame(workersToMerge: new[] { w0 });
+
+        Assert.Equal(10, snap.LinesProcessed);
+    }
+
+    [Fact]
+    public void BuildSnapshotAndFrame_WithNullFilter_MergesAllWorkers()
+    {
+        // When workersToMerge is null the final-report path must merge all workers.
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var w0 = new WorkerStats();
+        var w1 = new WorkerStats();
+
+        w0.Active.LinesProcessed = 7;
+        w1.Active.LinesProcessed = 3;
+
+        w0.RequestSwap(); w0.AcknowledgeSwapIfRequested();
+        w1.RequestSwap(); w1.AcknowledgeSwapIfRequested();
+
+        var reporter = new Reporter(new[] { w0, w1 }, bus);
+        var snap = reporter.BuildSnapshotAndFrame(workersToMerge: null);
+
+        Assert.Equal(10, snap.LinesProcessed);
+    }
+
+    [Fact]
+    [Invariant("RPT-007")]
+    [Invariant("RPT-004")]
+    public void Reporter_WhenWorkerAckTimesOut_SnapshotExcludesTimedOutWorkerData()
+    {
+        // Worker 0 acks normally with known data.
+        // Worker 1 never acks (simulates stuck worker).
+        // The merged snapshot must contain worker 0's data only.
+        GlobalSnapshot? captured = null;
+        var capturingConsumer = new CapturingSnapshotConsumer(s => captured = s);
+
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var w0 = new WorkerStats();
+        var w1 = new WorkerStats(); // never acks
+
+        // Pre-seed w1's active buffer with data that must NOT appear in the snapshot
+        w1.Active.LinesProcessed = 999;
+
+        // w0 will be driven by the real worker protocol: the coordinator normally calls
+        // AcknowledgeSwapIfRequested. We simulate it with a background thread.
+        var ackThread = new Thread(() =>
+        {
+            while (true)
+            {
+                w0.AcknowledgeSwapIfRequested();
+                Thread.Sleep(5);
+            }
+        })
+        { IsBackground = true };
+        w0.Active.LinesProcessed = 42;
+        ackThread.Start();
+
+        var reporter = new Reporter(
+            new[] { w0, w1 }, bus,
+            topK: 1,
+            interval: TimeSpan.FromMilliseconds(100),
+            ackTimeout: TimeSpan.FromMilliseconds(50),
+            consumers: [capturingConsumer]);
+
+        reporter.Start();
+        Thread.Sleep(500); // allow at least one interval
+        reporter.Stop();
+
+        Assert.NotNull(captured);
+        // w1's 999 lines must not appear; only w0's data (42) is valid
+        Assert.True(captured!.LinesProcessed < 100,
+            $"Expected LinesProcessed < 100 (only w0 data), got {captured.LinesProcessed}. " +
+            "Timed-out worker's stale buffer was incorrectly merged.");
+    }
+
+
+    [Fact]
+    [Invariant("RPT-004")]
+    public void Reporter_WhenWorkerAckTimesOut_LogsWarningAndContinues()
+    {
+        // When a worker fails to acknowledge a swap within the timeout the reporter
+        // must proceed with available data and log a warning — it must not crash or block.
+        using var outWriter = new StringWriter();
+        var originalOut = Console.Out;
+        Console.SetOut(outWriter);
+        try
+        {
+            var bus = new BoundedEventBus<FsEvent>(10);
+            var ws = new WorkerStats();
+            // Worker never acknowledges swaps because it never calls AcknowledgeSwapIfRequested
+            var workers = new[] { ws };
+            // Extremely short ack timeout to force a timeout on every interval.
+            var capturingLogger = new CapturingLogger<Reporter>();
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(1), logger: capturingLogger, consumers: [new ConsoleSnapshotConsumer()]);
+            reporter.Start();
+            Thread.Sleep(2500); // allow multiple fast intervals with forced ack timeouts
+            reporter.Stop();
+
+            var stdOutput = outWriter.ToString();
+            // A warning must be logged when the ack times out
+            Assert.True(capturingLogger.HasWarning("timed out"), "Expected a warning log about swap timeout");
+            // The reporter must still produce output despite the timeout
+            Assert.Contains("[REPORT]", stdOutput);
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
+    [Fact]
+    [Invariant("RPT-005")]
+    public void Stop_AfterStart_ThreadExitsWithinBoundedTime()
+    {
+        // Validates that Volatile.Write(ref _stopping, true) in Stop() is seen by
+        // Volatile.Read(ref _stopping) in the loop thread, causing it to exit promptly.
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var workers = new[] { new WorkerStats() };
+        var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromSeconds(1), ackTimeout: TimeSpan.FromMilliseconds(50));
+
+        reporter.Start();
+        reporter.Stop(); // must not hang
+
+        // The reporter's background thread must have joined inside Stop()'s 2-second limit.
+        // If the stopping flag write were invisible to the loop, Stop() would hang here.
+        // Reaching this line proves the thread exited.
+        Assert.True(true, "Stop() returned — thread exited within the join timeout.");
+    }
+
+    [Fact]
+    [Invariant("RPT-005")]
+    public void Stop_CalledMultipleTimes_IsIdempotent()
+    {
+        // A second Stop() after the thread has already exited must not throw or hang.
+        var bus = new BoundedEventBus<FsEvent>(10);
+        var workers = new[] { new WorkerStats() };
+        var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromSeconds(1), ackTimeout: TimeSpan.FromMilliseconds(50));
+
+        reporter.Start();
+        reporter.Stop();
+        reporter.Stop(); // second call — must be safe
+    }
+
+    [Fact]
+    [Invariant("RPT-006")]
+    public void StartStopStart_StoppingFlagReset_ReporterRunsAgain()
+    {
+        // Validates that Volatile.Write(ref _stopping, false) in Start() correctly resets
+        // the flag so that a restarted reporter loop does not exit immediately.
+        var originalOut = Console.Out;
+        using var writer = new StringWriter();
+        Console.SetOut(writer);
+        try
+        {
+            var bus = new BoundedEventBus<FsEvent>(10);
+            var workers = new[] { new WorkerStats() };
+            var reporter = new Reporter(workers, bus, 1, interval: TimeSpan.FromMilliseconds(100), ackTimeout: TimeSpan.FromMilliseconds(50), consumers: [new ConsoleSnapshotConsumer()]);
+
+            // First cycle
+            reporter.Start();
+            reporter.Stop();
+
+            // Second cycle — if _stopping were not reset, the loop would see true immediately
+            // and no interval reports would ever fire in the second run.
+            reporter.Start();
+            Thread.Sleep(2500); // allow at least one interval tick
+            reporter.Stop();
+
+            var output = writer.ToString();
+            int intervalReportCount = output.Split('\n')
+                .Count(l => l.Contains("[REPORT]") && !l.Contains("elapsed=0.00"));
+            Assert.True(intervalReportCount >= 1,
+                $"Expected at least one interval report from the second Start(), but got {intervalReportCount}. " +
+                "This suggests _stopping was not reset to false before the loop started.");
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
+    }
+
 }

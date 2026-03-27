@@ -5,3 +5,5 @@ riderModule.iml
 /_ReSharper.Caches/
 /temp
 *.sln.DotSettings.user
+BenchmarkDotNet.Artifacts/
+out/
