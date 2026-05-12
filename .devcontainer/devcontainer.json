@@ -1,0 +1,28 @@
+﻿{
+  "name": "LogWatcher-DevContainer",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1" : {
+      "version": "3.12",
+      "installTools": false
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      "version": "10.0"
+    }
+  },
+  "postCreateCommand": "dotnet restore",
+  "customizations": {
+    "jetbrains": {
+      "backend": "Rider",
+      "plugins": [
+        "com.github.copilot",
+        "com.intellij.resharper.HeapAllocationsViewer"
+      ]
+    }
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder}/temp,target=${containerWorkspaceFolder}/temp,type=bind"
+  ],
+  "remoteUser": "vscode"
+}
