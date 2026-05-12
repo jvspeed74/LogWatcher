@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "LogWatcher-DevContainer",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu24.04",
   "features": {
