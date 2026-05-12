@@ -25,7 +25,6 @@ LogWatcher.sln
 │   ├── invariants.md
 │   ├── thread_lifecycle.md
 │   ├── system_diagram.md
-│   └── components/          # Per-component deep-dives
 ├── global.json              # Pins SDK version (currently .NET 10.0.101)
 ├── compose.yaml             # Docker Compose for app + seeder
 └── .github/
@@ -238,7 +237,6 @@ public void Bus_NeverExceedsCapacity() { ... }
 | `docs/invariants.md` | All behavioral guarantees; invariant IDs for test tagging |
 | `docs/thread_lifecycle.md` | Thread roles, lifecycles, startup/shutdown order |
 | `docs/system_diagram.md` | Mermaid architecture diagrams |
-| `docs/components/` | Deep-dives on individual components |
 | `.github/instructions/copilot-instructions.md` | Anti-patterns, good patterns, decision tree (separate file from this one) |
 | `.github/instructions/dotnet.instructions.md` | .NET/C# coding standards for this repo |
 
