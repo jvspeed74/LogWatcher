@@ -1,4 +1,4 @@
-﻿# LogWatcher
+# LogWatcher
 
 **Real-time log statistics for .NET without external dependencies.**
 
@@ -174,14 +174,20 @@ docker compose up --build
 
 ---
 
-## Key Design Decisions
+## Documentation
 
-For a full breakdown see:
-- [project_specification.md](docs/project_specification.md)
-- [system_diagram.md](docs/system_diagram.md)
-- [domain_boundaries.md](docs/domain_boundaries.md)
-- [concurrency_model.md](docs/concurrency_model.md)
-- [thread_lifecycle.md](docs/thread_lifecycle.md)
+**Start here**
+- [invariants.md](docs/invariants.md) — Every behavioral guarantee the system makes; IDs are enforced by tests. Read this before changing anything.
+- [domain_boundaries.md](docs/domain_boundaries.md) — What each of the 12 domains owns and why; tells you where new code belongs.
+
+**Reference when modifying specific subsystems**
+- [thread_lifecycle.md](docs/thread_lifecycle.md) — Thread roles, startup/shutdown order, and lifecycle rules.
+- [concurrency_model.md](docs/concurrency_model.md) — Diagrams for every thread interaction, lock, and state machine.
+
+**Background**
+- [project_specification.md](docs/project_specification.md) — Non-technical overview of what the system does and why.
+- [system_diagram.md](docs/system_diagram.md) — High-level architecture diagrams.
+- [domain_definition.md](docs/domain_definition.md) — The theory behind what a "domain" is; context for domain_boundaries.md.
 
 ---
 
