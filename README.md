@@ -181,7 +181,6 @@ docker compose up --build
 - [domain_boundaries.md](docs/domain_boundaries.md) — What each of the 12 domains owns and why; tells you where new code belongs.
 
 **Reference when modifying specific subsystems**
-- [thread_lifecycle.md](docs/thread_lifecycle.md) — Thread roles, startup/shutdown order, and lifecycle rules.
 - [concurrency_model.md](docs/concurrency_model.md) — Diagrams for every thread interaction, lock, and state machine.
 
 **Background**

@@ -44,6 +44,8 @@ graph TD
     MT -- "EnableRaisingEvents" --> WT
 ```
 
+**GC threads** are runtime-managed and not shown above. They run intermittently under memory pressure, may briefly pause application threads, and never corrupt program state. The reporter accounts for GC pauses by computing rates from actual elapsed time (RPT-001).
+
 ### Startup and shutdown order
 
 Startup and shutdown follow strict orderings (invariants **HOST-001** / **HOST-003**).
