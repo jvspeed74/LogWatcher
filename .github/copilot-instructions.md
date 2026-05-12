@@ -21,7 +21,6 @@ LogWatcher.sln
 │   └── Stress/
 ├── docs/                    # Specifications, invariants, domain boundaries
 │   ├── project_specification.md
-│   ├── technical_specification.md
 │   ├── domain_boundaries.md
 │   ├── invariants.md
 │   ├── thread_lifecycle.md
@@ -236,7 +235,6 @@ public void Bus_NeverExceedsCapacity() { ... }
 | File | Purpose |
 |------|---------|
 | `docs/project_specification.md` | Non-technical overview; scope, risks, success criteria |
-| `docs/technical_specification.md` | Component-by-component implementation plan |
 | `docs/domain_boundaries.md` | Authoritative 12-domain map with responsibilities |
 | `docs/invariants.md` | All behavioral guarantees; invariant IDs for test tagging |
 | `docs/thread_lifecycle.md` | Thread roles, lifecycles, startup/shutdown order |
