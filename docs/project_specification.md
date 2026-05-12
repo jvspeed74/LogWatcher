@@ -4,7 +4,7 @@
 
 ### Status
 
-Proposed / Ready for development
+Fully implemented and tested.
 
 ### Audience
 
