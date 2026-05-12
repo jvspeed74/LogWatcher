@@ -24,7 +24,6 @@ LogWatcher.sln
 │   ├── domain_boundaries.md
 │   ├── invariants.md
 │   ├── thread_lifecycle.md
-│   ├── definition_of_done.md
 │   ├── system_diagram.md
 │   └── components/          # Per-component deep-dives
 ├── global.json              # Pins SDK version (currently .NET 10.0.101)
@@ -238,7 +237,6 @@ public void Bus_NeverExceedsCapacity() { ... }
 | `docs/domain_boundaries.md` | Authoritative 12-domain map with responsibilities |
 | `docs/invariants.md` | All behavioral guarantees; invariant IDs for test tagging |
 | `docs/thread_lifecycle.md` | Thread roles, lifecycles, startup/shutdown order |
-| `docs/definition_of_done.md` | Checklist of functional and non-functional requirements |
 | `docs/system_diagram.md` | Mermaid architecture diagrams |
 | `docs/components/` | Deep-dives on individual components |
 | `.github/instructions/copilot-instructions.md` | Anti-patterns, good patterns, decision tree (separate file from this one) |
