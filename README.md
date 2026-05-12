@@ -176,8 +176,12 @@ docker compose up --build
 
 ## Key Design Decisions
 
-For a full breakdown see [`docs/technical_specification.md`](docs/technical_specification.md) and [
-`docs/thread_lifecycle.md`](docs/thread_lifecycle.md).
+For a full breakdown see:
+- [project_specification.md](docs/project_specification.md)
+- [system_diagram.md](docs/system_diagram.md)
+- [domain_boundaries.md](docs/domain_boundaries.md)
+- [concurrency_model.md](docs/concurrency_model.md)
+- [thread_lifecycle.md](docs/thread_lifecycle.md)
 
 ---
 
