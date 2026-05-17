@@ -171,8 +171,7 @@ graph TB
 
 Concurrent code has a failure class that prose instructions can't reliably prevent: an agent or contributor sees a lock
 or a flag and removes it to simplify code, not understanding the race condition it prevents. The rule was written down,
-but without the semantic context for *why* it exists, it gets rationalized away. This kept happening during development
-with AI agents.
+but ignored or forgotten during implementation. This kept happening during development with AI agents.
 
 The response was to stop relying on instructions and make the rules machine-enforced. Every behavioral guarantee that
 crosses a component boundary — things like "at most one worker processes a given file at any point in time" or "once
@@ -180,14 +179,16 @@ delete-pending is set it is never cleared" — was assigned a typed ID (`PROC-00
 one of those guarantees is tagged `[Invariant("ID")]`. A dedicated coverage test (`InvariantCoverageTests.cs`) fails the
 build if any invariant ID has no tagged test.
 
-The result: an agent that removes a lock doesn't violate a prose rule that might be misunderstood or overlooked — **it
-breaks the build**. No semantic understanding of the concurrency model required.
+The result: an agent doesn't have to front-load all the micro-interactions in the system to make a safe change. They can
+make the change, and if it violates an invariant, a test will fail and point them to the exact guarantee they broke.
+This makes it much more feasible to use agents for development in concurrent systems, where the mental overhead of all
+the interactions is a major barrier.
 
-### What is an invariant?
+### What is a System Invariant?
 
-An invariant is an **architectural guarantee** — a property that crosses a component boundary or
-describes a system-wide safety rule that multiple components depend on. They are not implementation details, but rather
-the behavioral contracts that the system as a whole relies on to function correctly.
+A system invariant is an **architectural guarantee** — a property that crosses a component boundary or
+describes a system-wide safety rule that multiple components depend on. They are not user-facing features or
+implementation details, but rather the "rules of the road" that ensure the system behaves correctly under concurrency.
 
 Invariants are typed by severity:
 
