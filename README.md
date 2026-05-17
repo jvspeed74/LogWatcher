@@ -51,6 +51,8 @@ docker compose up --build
 
 ---
 
+[//]: # (TODO: Reorder sections for better readability.)
+
 ## Table of Contents
   * [Why This Exists](#why-this-exists)
   * [Design Decisions](#design-decisions)
@@ -83,6 +85,8 @@ These were **intentionally restrictive** to encourage creativity and learning:
   losing consistency
 
 ---
+
+[//]: # (TODO: Make this section more ingestible. It's a bit of a brain dump right now. Maybe split into subsections with diagrams? The goal is to explain the rationale behind the most important design decisions, so that when we inevitably revisit those decisions later we can understand the context and tradeoffs without having to re-derive them from scratch.)
 
 ## Design Decisions
 
