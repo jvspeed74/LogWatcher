@@ -22,6 +22,8 @@ Every two seconds it prints a summary to the console:
 
 It runs as a single self-contained process.
 
+See [project_specification.md](docs/project_specification.md) for the non-technical specification of the system.
+
 ## Usage
 
 ```bash
@@ -186,7 +188,7 @@ There are roughly 50 invariants across 10 domains. Not all correct behavior qual
 | `contract` | Caller and callee disagree on a shared assumption |
 | `operational` | Only occurs under resource exhaustion or OS failure |
 
-See [invariants.md](docs/invariants.md) for the full list.
+See [invariants.md](docs/invariants.md) and [domain_boundaries](docs/domain_boundaries.md) for more info.
 
 ---
 
