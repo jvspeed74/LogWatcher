@@ -167,6 +167,19 @@ graph TB
 
 ---
 
+## Documentation
+
+| Priority | Document | Purpose |
+|----------|----------|---------|
+| **Start here** | [invariants.md](docs/invariants.md) | Every behavioral guarantee the system makes; IDs are enforced by tests. Read this before changing anything. |
+| **Start here** | [domain_boundaries.md](docs/domain_boundaries.md) | What each of the 12 domains owns and why; tells you where new code belongs. |
+| Reference | [concurrency_model.md](docs/concurrency_model.md) | Diagrams for every thread interaction, lock, and state machine. |
+| Background | [project_specification.md](docs/project_specification.md) | Non-technical overview of what the system does and why. |
+| Background | [system_diagram.md](docs/system_diagram.md) | High-level architecture diagrams. |
+| Background | [domain_definition.md](docs/domain_definition.md) | The theory behind what a "domain" is; context for domain_boundaries.md. |
+
+---
+
 ## Machine-Enforced Invariants for Agentic Development in Concurrent Systems
 
 Concurrent code has a failure class that prose instructions can't reliably prevent: an agent or contributor sees a lock
@@ -207,30 +220,6 @@ The full definition can be found in [invariants.md](docs/invariants.md), but exa
 | TAIL-004 | `behavioral`  | TAIL       | File not found, access denied, and IO errors are mapped to status codes and never propagated as exceptions to the caller. |
 | SCAN-005 | `contract`    | SCAN, PROC | The span passed to `onLine` is only valid for the duration of the callback and must not be retained by the caller.        |
 | <>       | `operational` | <>         | <>                                                                                                                        |
-
----
-
-## Documentation
-
-**Start here**
-
-- [invariants.md](docs/invariants.md) — Every behavioral guarantee the system makes; IDs are enforced by tests. Read
-  this before changing anything.
-- [domain_boundaries.md](docs/domain_boundaries.md) — What each of the 12 domains owns and why; tells you where new code
-  belongs.
-
-**Reference when modifying specific subsystems**
-
-- [concurrency_model.md](docs/concurrency_model.md) — Diagrams for every thread interaction, lock, and state machine.
-
-**Background**
-
-- [project_specification.md](docs/project_specification.md) — Non-technical overview of what the system does and why.
-- [system_diagram.md](docs/system_diagram.md) — High-level architecture diagrams.
-- [domain_definition.md](docs/domain_definition.md) — The theory behind what a "domain" is; context for
-  domain_boundaries.md.
-
----
 
 ## License
 
