@@ -10,12 +10,52 @@
 
 ---
 
+## Overview
+
+LogWatcher watches a local directory for `.log` and `.txt` file activity and computes rolling statistics in real time. As files grow, it tails each one incrementally — reading only newly appended bytes — and parses every line for timestamp, log level, message type, and optional latency.
+
+Every two seconds it prints a summary to the console:
+- lines processed per second
+- malformed line counts
+- the most frequent message types
+- latency percentiles (p50/p95/p99). 
+
+It runs as a single self-contained process.
+
+## Usage
+
+```bash
+dotnet run --project LogWatcher.App -- <watchPath> [options]
+```
+
+| Argument/Option         | Description                                      | Default    |
+|-------------------------|--------------------------------------------------|------------|
+| `watchPath`             | Directory path to watch for log file changes     | (required) |
+| `--workers, -w`         | Number of worker threads for parallel processing | CPU count  |
+| `--queue-capacity, -q`  | Maximum capacity of the filesystem event queue   | 10,000     |
+| `--report-interval, -i` | Interval between console output (seconds)        | 2          |
+| `--topk, -k`            | Number of most-frequent messages to track        | 10         |
+| `--log-level, -l`       | Minimum log level for LogWatcher output (`Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`) | `Warning` |
+
+```bash
+dotnet run --project LogWatcher.App -- ./logs --workers 8 --queue-capacity 50000 --report-interval 1
+```
+
+### Docker Compose
+
+To run the application with a sample log generator using Docker Compose, use the following command:
+
+```bash
+docker compose up --build
+```
+
+---
+
 ## Table of Contents
   * [Why This Exists](#why-this-exists)
   * [Design Decisions](#design-decisions)
   * [Invariants](#invariants)
   * [Architecture](#architecture)
-  * [Usage](#usage)
   * [Documentation](#documentation)
   * [License](#license)
 
@@ -198,35 +238,6 @@ graph TB
     GS -->|Snapshot| REP
     REP -->|Output| STDOUT["Console Output"]
 
-```
-
----
-
-## Usage
-
-```bash
-dotnet run --project LogWatcher.App -- <watchPath> [options]
-```
-
-| Argument/Option         | Description                                      | Default    |
-|-------------------------|--------------------------------------------------|------------|
-| `watchPath`             | Directory path to watch for log file changes     | (required) |
-| `--workers, -w`         | Number of worker threads for parallel processing | CPU count  |
-| `--queue-capacity, -q`  | Maximum capacity of the filesystem event queue   | 10,000     |
-| `--report-interval, -i` | Interval between console output (seconds)        | 2          |
-| `--topk, -k`            | Number of most-frequent messages to track        | 10         |
-| `--log-level, -l`       | Minimum log level for LogWatcher output (`Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`) | `Warning` |
-
-```bash
-dotnet run --project LogWatcher.App -- ./logs --workers 8 --queue-capacity 50000 --report-interval 1
-```
-
-### Docker Compose
-
-To run the application with a sample log generator using Docker Compose, use the following command:
-
-```bash
-docker compose up --build
 ```
 
 ---
