@@ -51,7 +51,7 @@ namespace LogWatcher.Core.Processing
             _tailer = tailer ?? new FileTailer();
             _logger = logger;
         }
-        
+
         /// <summary>
         /// Process whatever is appended right now. Caller must hold <c>state.Gate</c>.
         /// This method advances <c>state.Offset</c> only after processing completes successfully.
