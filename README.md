@@ -169,14 +169,14 @@ graph TB
 
 ## Documentation
 
-| Priority | Document | Purpose |
-|----------|----------|---------|
-| **Start here** | [invariants.md](docs/invariants.md) | Every behavioral guarantee the system makes; IDs are enforced by tests. Read this before changing anything. |
-| **Start here** | [domain_boundaries.md](docs/domain_boundaries.md) | What each of the 12 domains owns and why; tells you where new code belongs. |
-| Reference | [concurrency_model.md](docs/concurrency_model.md) | Diagrams for every thread interaction, lock, and state machine. |
-| Background | [project_specification.md](docs/project_specification.md) | Non-technical overview of what the system does and why. |
-| Background | [system_diagram.md](docs/system_diagram.md) | High-level architecture diagrams. |
-| Background | [domain_definition.md](docs/domain_definition.md) | The theory behind what a "domain" is; context for domain_boundaries.md. |
+| Priority       | Document                                                  | Purpose                                                                                                     |
+|----------------|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| **Start here** | [invariants.md](docs/invariants.md)                       | Every behavioral guarantee the system makes; IDs are enforced by tests. Read this before changing anything. |
+| **Start here** | [domain_boundaries.md](docs/domain_boundaries.md)         | What each of the 12 domains owns and why; tells you where new code belongs.                                 |
+| Reference      | [concurrency_model.md](docs/concurrency_model.md)         | Diagrams for every thread interaction, lock, and state machine.                                             |
+| Background     | [project_specification.md](docs/project_specification.md) | Non-technical overview of what the system does and why.                                                     |
+| Background     | [system_diagram.md](docs/system_diagram.md)               | High-level architecture diagrams.                                                                           |
+| Background     | [domain_definition.md](docs/domain_definition.md)         | The theory behind what a "domain" is; context for domain_boundaries.md.                                     |
 
 ---
 
