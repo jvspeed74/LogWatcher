@@ -1,4 +1,4 @@
-﻿# LogWatcher
+# LogWatcher
 
 **Real-time log statistics for .NET without external dependencies.**
 
@@ -7,6 +7,52 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
 ![](./docs/assets/terminal_demonstration.gif)
+
+---
+
+## Overview
+
+LogWatcher watches a local directory for `.log` and `.txt` file activity and computes rolling statistics in real time.
+As files grow, it tails each one incrementally — reading only newly appended bytes — and parses every line for
+timestamp, log level, message type, and optional latency.
+
+Every two seconds it prints a summary to the console:
+
+- lines processed per second
+- malformed line counts
+- the most frequent message types
+- latency percentiles (p50/p95/p99).
+
+It runs as a single self-contained process.
+
+See [project_specification.md](docs/project_specification.md) for the non-technical specification of the system.
+
+## Usage
+
+```bash
+dotnet run --project LogWatcher.App -- <watchPath> [options]
+```
+
+| Argument/Option         | Description                                                                                               | Default    |
+|-------------------------|-----------------------------------------------------------------------------------------------------------|------------|
+| `watchPath`             | Directory path to watch for log file changes                                                              | (required) |
+| `--workers, -w`         | Number of worker threads for parallel processing                                                          | CPU count  |
+| `--queue-capacity, -q`  | Maximum capacity of the filesystem event queue                                                            | 10,000     |
+| `--report-interval, -i` | Interval between console output (seconds)                                                                 | 2          |
+| `--topk, -k`            | Number of most-frequent messages to track                                                                 | 10         |
+| `--log-level, -l`       | Minimum log level for LogWatcher output (`Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`) | `Warning`  |
+
+```bash
+dotnet run --project LogWatcher.App -- ./logs --workers 8 --queue-capacity 50000 --report-interval 1
+```
+
+### Docker Compose
+
+To run the application with a sample log generator using Docker Compose, use the following command:
+
+```bash
+docker compose up --build
+```
 
 ---
 
@@ -24,27 +70,13 @@ Before considering any design, I gave myself a set of constraints to force trade
 
 These were **intentionally restrictive** to encourage creativity and learning:
 
-- **No external dependencies** — Only .NET built-in libraries; no third-party packages for parsing, metrics, or
-  concurrency
+- **No external dependencies** — Only .NET built-in libraries
 - **Eventual consistency** — In-memory state may be temporarily stale or inconsistent across workers, but must
   converge to correctness over time without manual intervention
 - **State must never be corrupted** — Handle data races and cross thread operations gracefully without crashing or
-  losing consistency
-
----
-
-## Technical Highlights
-
-- **Span-based zero-allocation hot path** — UTF-8 line parsing uses `ReadOnlySpan<byte>` with pooled buffers to minimize
-  GC pressure in the parsing loop
-- **Double-buffer swap protocol** — Lock-free stats collection between N worker threads and the reporter thread using
-  atomic buffer exchanges and interval-based snapshots
-- **Drop-newest backpressure** — Bounded event queue with deterministic metrics visibility; when full, new events are
-  dropped with explicit reporting, not silently deferred
-- **Safe file deletion handling** — Epoch-based file tracking prevents crashes on delete/rename races;
-  `FileStateRegistry` maintains consistency across concurrent workers
-- **Per-worker stats aggregation** — Each worker accumulates local counters independently, reducing contention versus a
-  shared global counter; buffers are merged at report time
+  losing consistency.
+- **No managed thread pool** — Explicitly manage worker threads to force decisions around thread lifecycle,
+  synchronization, and coordination.
 
 ---
 
@@ -105,39 +137,29 @@ graph TB
 
     FS -->|File Changes| FSW
     FSW -->|FsEvent| BEB
-
     BEB -->|Dequeue| PC
-
     PC -->|Lookup/Create| FSR
     FSR -->|State| FS_State
     FS_State -->|Carryover| PLB
-
     PC -->|Orchestrate| FP
-
     FP -->|Read Chunks| FT
     FT -->|Status| TRS
     FT -->|Raw Bytes| USS
-
     USS -->|Lines| LP
     LP -->|Level| LL
     LP -->|ParsedLogLine| PLL
-
     PLL -->|Counters| WSB
     PLL -->|Message| TK
     PLL -->|Latency| LH
-
     WSB -->|Contains| Statistics
     TK -->|Contains| Statistics
     LH -->|Contains| Statistics
-
     PC -->|Coordinates| WS
     WS -->|Owns| WSB
-
     WS -->|Swap Request| REP
     WSB -->|Merge| GS
     TK -->|Merge| GS
     LH -->|Merge| GS
-
     GS -->|Snapshot| REP
     REP -->|Output| STDOUT["Console Output"]
 
@@ -145,41 +167,59 @@ graph TB
 
 ---
 
-## Usage
+## Documentation
 
-```bash
-dotnet run --project LogWatcher.App -- <watchPath> [options]
-```
-
-| Argument/Option         | Description                                      | Default    |
-|-------------------------|--------------------------------------------------|------------|
-| `watchPath`             | Directory path to watch for log file changes     | (required) |
-| `--workers, -w`         | Number of worker threads for parallel processing | CPU count  |
-| `--queue-capacity, -q`  | Maximum capacity of the filesystem event queue   | 10,000     |
-| `--report-interval, -i` | Interval between console output (seconds)        | 2          |
-| `--topk, -k`            | Number of most-frequent messages to track        | 10         |
-| `--log-level, -l`       | Minimum log level for LogWatcher output (`Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`) | `Warning` |
-
-```bash
-dotnet run --project LogWatcher.App -- ./logs --workers 8 --queue-capacity 50000 --report-interval 1
-```
-
-### Docker Compose
-
-To run the application with a sample log generator using Docker Compose, use the following command:
-
-```bash
-docker compose up --build
-```
+| Priority       | Document                                                  | Purpose                                                                                                     |
+|----------------|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| **Start here** | [invariants.md](docs/invariants.md)                       | Every behavioral guarantee the system makes; IDs are enforced by tests. Read this before changing anything. |
+| **Start here** | [domain_boundaries.md](docs/domain_boundaries.md)         | What each of the 12 domains owns and why; tells you where new code belongs.                                 |
+| Reference      | [concurrency_model.md](docs/concurrency_model.md)         | Diagrams for every thread interaction, lock, and state machine.                                             |
+| Background     | [project_specification.md](docs/project_specification.md) | Non-technical overview of what the system does and why.                                                     |
+| Background     | [system_diagram.md](docs/system_diagram.md)               | High-level architecture diagrams.                                                                           |
+| Background     | [domain_definition.md](docs/domain_definition.md)         | The theory behind what a "domain" is; context for domain_boundaries.md.                                     |
 
 ---
 
-## Key Design Decisions
+## Machine-Enforced Invariants for Agentic Development in Concurrent Systems
 
-For a full breakdown see [`docs/technical_specification.md`](docs/technical_specification.md) and [
-`docs/thread_lifecycle.md`](docs/thread_lifecycle.md).
+Concurrent code has a failure class that prose instructions can't reliably prevent: an agent or contributor sees a lock
+or a flag and removes it to simplify code, not understanding the race condition it prevents. The rule was written down,
+but ignored or forgotten during implementation. This kept happening during development with AI agents.
 
----
+The response was to stop relying on instructions and make the rules machine-enforced. Every behavioral guarantee that
+crosses a component boundary — things like "at most one worker processes a given file at any point in time" or "once
+delete-pending is set it is never cleared" — was assigned a typed ID (`PROC-001`, `FM-002`). Every test that protects
+one of those guarantees is tagged `[Invariant("ID")]`. A dedicated coverage test (`InvariantCoverageTests.cs`) fails the
+build if any invariant ID has no tagged test.
+
+The result: an agent doesn't have to front-load all the micro-interactions in the system to make a safe change. They can
+make the change, and if it violates an invariant, a test will fail and point them to the exact guarantee they broke.
+This makes it much more feasible to use agents for development in concurrent systems, where the mental overhead of all
+the interactions is a major barrier.
+
+### What is a System Invariant?
+
+A system invariant is an **architectural guarantee** — a property that crosses a component boundary or
+describes a system-wide safety rule that multiple components depend on. They are not user-facing features or
+implementation details, but rather the "rules of the road" that ensure the system behaves correctly under concurrency.
+
+Invariants are typed by severity:
+
+| Type          | Violation means                                                |
+|---------------|----------------------------------------------------------------|
+| `strict`      | Data loss, corruption, or a crash                              |
+| `behavioral`  | Degraded but survivable behavior                               |
+| `contract`    | Caller and callee disagree on a shared assumption              |
+| `operational` | Undefined state occurs under resource exhaustion or OS failure |
+
+The full definition can be found in [invariants.md](docs/invariants.md), but examples include:
+
+| ID       | Type          | Domains    | Description                                                                                                               |
+|----------|---------------|------------|---------------------------------------------------------------------------------------------------------------------------|
+| PROC-001 | `strict`      | PROC, FM   | At most one worker processes a given file path at any point in time.                                                      |
+| TAIL-004 | `behavioral`  | TAIL       | File not found, access denied, and IO errors are mapped to status codes and never propagated as exceptions to the caller. |
+| SCAN-005 | `contract`    | SCAN, PROC | The span passed to `onLine` is only valid for the duration of the callback and must not be retained by the caller.        |
+| <>       | `operational` | <>         | <>                                                                                                                        |
 
 ## License
 

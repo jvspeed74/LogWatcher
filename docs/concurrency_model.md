@@ -1,9 +1,7 @@
 # Concurrency Model
 
 This document provides detailed Mermaid diagrams for every thread, synchronization primitive, and
-state machine in LogWatcher. For the authoritative component descriptions see
-[technical_specification.md](technical_specification.md), and for behavioural guarantees see
-[invariants.md](invariants.md).
+state machine in LogWatcher. For behavioural guarantees see [invariants.md](invariants.md).
 
 ---
 
@@ -45,6 +43,8 @@ graph TD
     MT -- "Start / Stop" --> RT
     MT -- "EnableRaisingEvents" --> WT
 ```
+
+**GC threads** are runtime-managed and not shown above. They run intermittently under memory pressure, may briefly pause application threads, and never corrupt program state. The reporter accounts for GC pauses by computing rates from actual elapsed time (RPT-001).
 
 ### Startup and shutdown order
 
