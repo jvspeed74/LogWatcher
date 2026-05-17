@@ -51,12 +51,7 @@ namespace LogWatcher.Core.Processing
             _tailer = tailer ?? new FileTailer();
             _logger = logger;
         }
-
-        // TODO: ProcessOnce violates the Single Responsibility Principle. It performs five distinct concerns
-        // in one method body: (1) file I/O via FileTailer, (2) byte scanning via Utf8LineScanner,
-        // (3) log parsing via LogParser, (4) statistics mutation, and (5) I/O error mapping.
-        // These responsibilities should be separated so each can be understood, tested, and changed independently.
-        //
+        
         /// <summary>
         /// Process whatever is appended right now. Caller must hold <c>state.Gate</c>.
         /// This method advances <c>state.Offset</c> only after processing completes successfully.
