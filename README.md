@@ -178,21 +178,32 @@ delete-pending is set it is never cleared" — was assigned a typed ID (`PROC-00
 one of those guarantees is tagged `[Invariant("ID")]`. A dedicated coverage test (`InvariantCoverageTests.cs`) fails the
 build if any invariant ID has no tagged test.
 
-The result: an agent that removes a lock doesn't violate a prose rule that might be misunderstood or overlooked — it
-breaks the build. No semantic understanding of the concurrency model required.
+The result: an agent that removes a lock doesn't violate a prose rule that might be misunderstood or overlooked — **it
+breaks the build**. No semantic understanding of the concurrency model required.
 
-There are roughly 50 invariants across 10 domains.
+### What is an invariant?
+
+An invariant is an **architectural guarantee** — a property that crosses a component boundary or
+describes a system-wide safety rule that multiple components depend on. They are not implementation details, but rather
+the behavioral contracts that the system as a whole relies on to function correctly.
 
 Invariants are typed by severity:
 
-| Type          | Violation means                                     |
-|---------------|-----------------------------------------------------|
-| `strict`      | Data loss, corruption, or a crash                   |
-| `behavioral`  | Degraded but survivable behavior                    |
-| `contract`    | Caller and callee disagree on a shared assumption   |
-| `operational` | Only occurs under resource exhaustion or OS failure |
+| Type          | Violation means                                                |
+|---------------|----------------------------------------------------------------|
+| `strict`      | Data loss, corruption, or a crash                              |
+| `behavioral`  | Degraded but survivable behavior                               |
+| `contract`    | Caller and callee disagree on a shared assumption              |
+| `operational` | Undefined state occurs under resource exhaustion or OS failure |
 
-See [invariants.md](docs/invariants.md) and [domain_boundaries](docs/domain_boundaries.md) for more info.
+The full definition can be found in [invariants.md](docs/invariants.md), but examples include:
+
+| ID       | Type          | Domains    | Description                                                                                                               |
+|----------|---------------|------------|---------------------------------------------------------------------------------------------------------------------------|
+| PROC-001 | `strict`      | PROC, FM   | At most one worker processes a given file path at any point in time.                                                      |
+| TAIL-004 | `behavioral`  | TAIL       | File not found, access denied, and IO errors are mapped to status codes and never propagated as exceptions to the caller. |
+| SCAN-005 | `contract`    | SCAN, PROC | The span passed to `onLine` is only valid for the duration of the callback and must not be retained by the caller.        |
+| <>       | `operational` | <>         | <>                                                                                                                        |
 
 ---
 
