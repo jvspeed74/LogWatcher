@@ -54,6 +54,8 @@ To run the application with a sample log generator using Docker Compose, use the
 docker compose up --build
 ```
 
+---
+
 ## Why This Exists
 
 Built as a learning project alongside SAA-C03 preparation to develop hands-on intuition for system design tradeoffs —
