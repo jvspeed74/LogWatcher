@@ -179,7 +179,9 @@ The response was to stop relying on instructions and make the rules machine-enfo
 
 The result: an agent that removes a lock doesn't violate a prose rule that might be misunderstood or overlooked — it breaks the build. No semantic understanding of the concurrency model required.
 
-There are roughly 50 invariants across 10 domains. Not all correct behavior qualifies — only guarantees that cross component boundaries or describe system-wide safety properties. Invariants are typed by severity:
+There are roughly 50 invariants across 10 domains. 
+
+Invariants are typed by severity:
 
 | Type | Violation means |
 |---|---|
