@@ -10,6 +10,17 @@
 
 ---
 
+## Table of Contents
+  * [Why This Exists](#why-this-exists)
+  * [Design Decisions](#design-decisions)
+  * [Invariants](#invariants)
+  * [Architecture](#architecture)
+  * [Usage](#usage)
+  * [Documentation](#documentation)
+  * [License](#license)
+
+---
+
 ## Why This Exists
 
 Built as a learning project alongside SAA-C03 preparation to develop hands-on intuition for system design tradeoffs —
