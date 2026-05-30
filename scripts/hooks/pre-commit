@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+echo "pre-commit: dotnet format (verify)"
+dotnet format LogWatcher.sln --verify-no-changes
+
+echo "pre-commit: dotnet build"
+dotnet build LogWatcher.sln
+
+echo "pre-commit: dotnet test"
+dotnet test LogWatcher.sln --no-build
