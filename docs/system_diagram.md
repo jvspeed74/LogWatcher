@@ -4,85 +4,85 @@
 
 ```mermaid
 graph TB
-    subgraph Input["Input Layer"]
+    subgraph Ingestion["Ingestion"]
         FS["File System"]
-        FSW["FileSystemWatcher"]
+        FSW["FilesystemWatcherAdapter"]
+        FEV["FsEvent<br/>Created|Modified|Deleted|Renamed"]
     end
 
-    subgraph EventBus["Event Bus Layer"]
-        BEB["BoundedEventBus&lt;FsEvent&gt;"]
-        EV["FsEvent<br/>Created|Modified|Deleted|Renamed"]
+    subgraph Backpressure["Backpressure"]
+        BEB["BoundedEventBus&lt;T&gt;"]
     end
 
-    subgraph Coordination["Coordination Layer"]
-        PC["ProcessingCoordinator<br/>N Worker Threads"]
+    subgraph FileManagement["FileManagement"]
         FSR["FileStateRegistry<br/>Per-File State Machine"]
+        FS_State["FileState<br/>Offset + Flags + Gate"]
+        PLB["PartialLineBuffer<br/>Carryover Storage"]
     end
 
-    subgraph Processing["Processing Layer"]
-        FP["FileProcessor<br/>Read & Parse"]
-        FT["FileTailer<br/>Track File Position"]
-        LP["LogParser<br/>Parse Log Lines"]
-        USS["Utf8LineScanner<br/>Span-based Scanning"]
+    subgraph Processing["Processing"]
+        PC["ProcessingCoordinator<br/>N Worker Threads"]
+        FP["FileProcessor<br/>Orchestrator"]
+
+        subgraph Tailing["Tailing"]
+            FT["FileTailer<br/>Chunked Reads"]
+            TRS["TailReadStatus"]
+        end
+
+        subgraph Scanning["Scanning"]
+            USS["Utf8LineScanner<br/>Line Splitting"]
+        end
+
+        subgraph Parsing["Parsing"]
+            LP["LogParser<br/>Parse Records"]
+            PLL["ParsedLogLine"]
+        end
     end
 
-    subgraph Metrics["Metrics & Stats Layer"]
-        WS["WorkerStats<br/>Per-Worker Stats"]
-        WSB["WorkerStatsBuffer<br/>Swap Buffer"]
-        LH["LatencyHistogram<br/>Track Latencies"]
-        TK["TopK<br/>Most Frequent Messages"]
-        GS["GlobalSnapshot<br/>Aggregate View"]
+    subgraph Statistics["Statistics"]
+        WSB["WorkerStatsBuffer<br/>Per-Interval Metrics"]
+        LH["LatencyHistogram<br/>Bounded Distribution"]
+        TK["TopK<br/>Frequency Computation"]
+        SL["StatLevel"]
+        SEK["StatEventKind"]
     end
 
-    subgraph Reporting["Reporting Layer"]
-        REP["Reporter<br/>Format & Output"]
-        STDOUT["Console Output"]
+    subgraph Coordination_["Coordination"]
+        WS["WorkerStats<br/>Double-Buffer Swap Protocol"]
     end
 
-    subgraph CLI["CLI Layer"]
-        PROG["Program<br/>Entry Point"]
-        CLIP["CliParser<br/>Parse Arguments"]
-        CLIC["CliConfig<br/>Configuration"]
-        HW["HostWiring<br/>Dependency Injection"]
+    subgraph Reporting["Reporting"]
+        GS["GlobalSnapshot<br/>Merged Interval View"]
+        REP["Reporter<br/>Aggregation & Output"]
     end
 
-    %% Input connections
     FS -->|File Changes| FSW
-    FSW -->|Adapt Events| FSA["FilesystemWatcherAdapter"]
-    FSA -->|Publish FsEvent| BEB
-
-    %% Event Bus
+    FSW -->|FsEvent| BEB
     BEB -->|Dequeue| PC
-
-    %% Coordination & Registry
-    PC -->|Lookup Per-File State| FSR
-    PC -->|Process File| FP
-    PC -->|Update Worker Stats| WS
-
-    %% Processing Pipeline
-    FP -->|Read Tail| FT
+    PC -->|Lookup/Create| FSR
+    FSR -->|State| FS_State
+    FS_State -->|Carryover| PLB
+    PC -->|Orchestrate| FP
+    FP -->|Read Chunks| FT
+    FT -->|Status| TRS
     FT -->|Raw Bytes| USS
     USS -->|Lines| LP
-    LP -->|ParsedLogLine| FP
-
-    %% Metrics Collection (via FileProcessor translation)
-    FP -->|Counters| WS
+    LP -->|ParsedLogLine| PLL
+    PLL -->|LogLevel → StatLevel| FP
+    FP -->|Counters| WSB
     FP -->|Message| TK
     FP -->|Latency| LH
-    WS -->|Buffer| WSB
-    WSB -->|Swap| GS
-
-    %% Reporting
-    GS -->|Aggregate Stats| REP
-    REP -->|Format Output| STDOUT
-
-    %% CLI Wiring
-    PROG -->|Parse| CLIP
-    CLIP -->|Create Config| CLIC
-    CLIC -->|Wire Components| HW
-    HW -->|Start| PC
-    HW -->|Start| FSA
-    HW -->|Periodic| REP
+    WSB -->|Contains| Statistics
+    TK -->|Contains| Statistics
+    LH -->|Contains| Statistics
+    PC -->|Coordinates| WS
+    WS -->|Owns| WSB
+    WS -->|Swap Request| REP
+    WSB -->|Merge| GS
+    TK -->|Merge| GS
+    LH -->|Merge| GS
+    GS -->|Snapshot| REP
+    REP -->|Output| STDOUT["Console Output"]
 
 ```
 
