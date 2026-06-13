@@ -63,12 +63,12 @@ graph TB
     FP -->|Read Tail| FT
     FT -->|Raw Bytes| USS
     USS -->|Lines| LP
-    LP -->|LogRecord| Metrics
+    LP -->|ParsedLogLine| FP
 
-    %% Metrics Collection
-    LP -->|Timestamp, Level| WS
-    LP -->|Message Key| TK
-    LP -->|Latency| LH
+    %% Metrics Collection (via FileProcessor translation)
+    FP -->|Counters| WS
+    FP -->|Message| TK
+    FP -->|Latency| LH
     WS -->|Buffer| WSB
     WSB -->|Swap| GS
 
@@ -135,7 +135,7 @@ graph LR
     D -->|Read File| G
     G -->|Get Position| H
     H -->|New Bytes| I
-    I -->|LogRecord| J
+    I -->|ParsedLogLine| J
     J -->|LogLevel → StatLevel| G
     G -->|Counters| K
     G -->|Message| L
@@ -158,17 +158,17 @@ graph TB
     end
 
     subgraph Records["Log Records"]
-        LOGR["LogRecord<br/>• Timestamp: DateTimeOffset<br/>• Level: LogLevel<br/>• MessageKey: ReadOnlySpan&lt;byte&gt;<br/>• LatencyMs: int?"]
-        LOGLVL["LogLevel<br/>Trace|Debug|Info<br/>Warn|Error|Fatal|Other"]
+        LOGR["ParsedLogLine<br/>• Timestamp: DateTimeOffset<br/>• Level: LogLevel<br/>• MessageKey: ReadOnlySpan&lt;byte&gt;<br/>• LatencyMs: int?"]
+        LOGLVL["LogLevel<br/>Info|Warn|Error|Debug|Other"]
     end
 
     subgraph FileState["File State Machine"]
-        FSTATE["FileState<br/>• Path: string<br/>• Position: long<br/>• LastObservedSize: long<br/>• IsDeleted: bool<br/>• Epoch: uint"]
+        FSTATE["FileState<br/>• Offset: long<br/>• Carry: PartialLineBuffer<br/>• Generation: int<br/>• IsDirty: bool<br/>• IsDeletePending: bool"]
         FSREG["FileStateRegistry<br/>Registry of all active<br/>file states"]
     end
 
     subgraph Stats["Statistics"]
-        WS["WorkerStats<br/>• LineCount<br/>• ErrorCount<br/>• TopK"]
+        WS["WorkerStats<br/>• Active: WorkerStatsBuffer<br/>• Inactive: WorkerStatsBuffer<br/>• Swap protocol"]
         WSB["WorkerStatsBuffer<br/>Current + Swap"]
         LH["LatencyHistogram<br/>• Median<br/>• P95, P99"]
         TK["TopK<br/>Most frequent<br/>message keys"]
@@ -262,7 +262,7 @@ sequenceDiagram
 graph LR
     A["Raw File<br/>Bytes"] -->|Read Chunk<br/>via FileTailer| B["Partial Line<br/>Buffer"]
     B -->|Utf8LineScanner<br/>ReadOnlySpan&lt;byte&gt;| C["Complete<br/>Log Line"]
-    C -->|Parse<br/>LogParser| D["LogRecord<br/>Timestamp<br/>Level<br/>Message Key<br/>Latency"]
+    C -->|Parse<br/>LogParser| D["ParsedLogLine<br/>Timestamp<br/>Level<br/>Message Key<br/>Latency"]
     D -->|Extract| E["Message Key<br/>String"]
     D -->|Extract| F["Latency<br/>int?"]
     E -->|TopK.Observe| G["TopK<br/>Frequency Map"]
