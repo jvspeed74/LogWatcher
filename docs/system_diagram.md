@@ -136,9 +136,10 @@ graph LR
     G -->|Get Position| H
     H -->|New Bytes| I
     I -->|LogRecord| J
-    J -->|Stats| K
-    J -->|Message| L
-    J -->|Latency| M
+    J -->|LogLevel → StatLevel| G
+    G -->|Counters| K
+    G -->|Message| L
+    G -->|Latency| M
     K -->|Swap Buffer| N
     L -->|Swap Buffer| N
     M -->|Swap Buffer| N
@@ -172,6 +173,8 @@ graph TB
         LH["LatencyHistogram<br/>• Median<br/>• P95, P99"]
         TK["TopK<br/>Most frequent<br/>message keys"]
         GS["GlobalSnapshot<br/>Aggregated metrics"]
+        SL["StatLevel<br/>Info|Warn|Error|Debug|Other"]
+        SEK["StatEventKind<br/>Created|Modified|Deleted|Renamed"]
     end
 
     FEV -.-> FEVK
