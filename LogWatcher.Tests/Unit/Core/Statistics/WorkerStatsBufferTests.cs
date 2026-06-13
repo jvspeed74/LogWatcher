@@ -81,4 +81,49 @@ public class WorkerStatsBufferTests
         });
         Assert.Null(ex);
     }
+
+    [Fact]
+    [Invariant("STAT-001")]
+    public void IncrementFsEvent_WithOutOfRangeKind_DoesNotThrow()
+    {
+        var buf = new WorkerStatsBuffer();
+        var ex = Record.Exception(() =>
+        {
+            buf.IncrementFsEvent((StatEventKind)9999);
+            buf.IncrementFsEvent((StatEventKind)(-1));
+        });
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void IncrementLevel_EachStatLevelVariant_IncrementsCorrectBucket()
+    {
+        var buf = new WorkerStatsBuffer();
+        buf.IncrementLevel(StatLevel.Info);
+        buf.IncrementLevel(StatLevel.Warn);
+        buf.IncrementLevel(StatLevel.Error);
+        buf.IncrementLevel(StatLevel.Debug);
+        buf.IncrementLevel(StatLevel.Other);
+
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Info]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Warn]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Error]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Debug]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Other]);
+    }
+
+    [Fact]
+    public void IncrementFsEvent_EachStatEventKindVariant_IncrementsCorrectCounter()
+    {
+        var buf = new WorkerStatsBuffer();
+        buf.IncrementFsEvent(StatEventKind.Created);
+        buf.IncrementFsEvent(StatEventKind.Modified);
+        buf.IncrementFsEvent(StatEventKind.Deleted);
+        buf.IncrementFsEvent(StatEventKind.Renamed);
+
+        Assert.Equal(1, buf.FsCreated);
+        Assert.Equal(1, buf.FsModified);
+        Assert.Equal(1, buf.FsDeleted);
+        Assert.Equal(1, buf.FsRenamed);
+    }
 }

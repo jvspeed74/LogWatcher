@@ -101,7 +101,7 @@ namespace LogWatcher.Core.Statistics
                 case StatEventKind.Modified: FsModified++; break;
                 case StatEventKind.Deleted: FsDeleted++; break;
                 case StatEventKind.Renamed: FsRenamed++; break;
-                default: throw new ArgumentOutOfRangeException(nameof(kind));
+                default: break;
             }
         }
 

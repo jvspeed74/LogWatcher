@@ -143,6 +143,7 @@ namespace LogWatcher.Core.Processing
                 stats.Histogram.Add(v);
         }
 
+#pragma warning disable CS8524
         private static StatLevel ToStatLevel(ParsingLogLevel level) => level switch
         {
             ParsingLogLevel.Info  => StatLevel.Info,
@@ -150,8 +151,8 @@ namespace LogWatcher.Core.Processing
             ParsingLogLevel.Error => StatLevel.Error,
             ParsingLogLevel.Debug => StatLevel.Debug,
             ParsingLogLevel.Other => StatLevel.Other,
-            _ => throw new ArgumentOutOfRangeException(nameof(level), level, null),
         };
+#pragma warning restore CS8524
 
         [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Processed path={Path} status={Status} bytesRead={BytesRead} lines={Lines} malformed={Malformed}")]
         private static partial void LogProcessed(ILogger logger, string path, TailReadStatus status, int bytesRead, long lines, long malformed);
