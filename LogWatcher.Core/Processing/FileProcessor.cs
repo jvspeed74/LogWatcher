@@ -8,6 +8,8 @@ using LogWatcher.Core.Statistics;
 
 using Microsoft.Extensions.Logging;
 
+using ParsingLogLevel = LogWatcher.Core.Processing.Parsing.LogLevel;
+
 namespace LogWatcher.Core.Processing
 {
     /// <summary>
@@ -127,7 +129,7 @@ namespace LogWatcher.Core.Processing
                 return;
             }
 
-            stats.IncrementLevel(parsed.Level);
+            stats.IncrementLevel(ToStatLevel(parsed.Level));
 
             // TODO: Encoding.UTF8.GetString allocates a new string for every line with a non-empty message key.
             // In a high-throughput scenario (many lines per second across many files) this creates sustained
@@ -140,6 +142,17 @@ namespace LogWatcher.Core.Processing
             if (parsed.LatencyMs is { } v)
                 stats.Histogram.Add(v);
         }
+
+#pragma warning disable CS8524
+        private static StatLevel ToStatLevel(ParsingLogLevel level) => level switch
+        {
+            ParsingLogLevel.Info  => StatLevel.Info,
+            ParsingLogLevel.Warn  => StatLevel.Warn,
+            ParsingLogLevel.Error => StatLevel.Error,
+            ParsingLogLevel.Debug => StatLevel.Debug,
+            ParsingLogLevel.Other => StatLevel.Other,
+        };
+#pragma warning restore CS8524
 
         [LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "Processed path={Path} status={Status} bytesRead={BytesRead} lines={Lines} malformed={Malformed}")]
         private static partial void LogProcessed(ILogger logger, string path, TailReadStatus status, int bytesRead, long lines, long malformed);

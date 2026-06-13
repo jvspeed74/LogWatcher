@@ -1,4 +1,3 @@
-using LogWatcher.Core.Processing.Parsing;
 using LogWatcher.Core.Statistics;
 
 namespace LogWatcher.Tests.Unit.Core.Statistics;
@@ -59,27 +58,72 @@ public class WorkerStatsBufferTests
 
     [Fact]
     [Invariant("STAT-001")]
-    public void LevelCounts_IndexedByLogLevelEnumValue_OutOfRangeIndexIsIgnored()
+    public void LevelCounts_IndexedByStatLevelEnumValue_OutOfRangeIndexIsIgnored()
     {
         var buf = new WorkerStatsBuffer();
 
-        buf.IncrementLevel(LogLevel.Info);
-        buf.IncrementLevel(LogLevel.Warn);
-        buf.IncrementLevel(LogLevel.Error);
-        buf.IncrementLevel(LogLevel.Debug);
+        buf.IncrementLevel(StatLevel.Info);
+        buf.IncrementLevel(StatLevel.Warn);
+        buf.IncrementLevel(StatLevel.Error);
+        buf.IncrementLevel(StatLevel.Debug);
 
-        // Verify counts are indexed by the integer value of each LogLevel
-        Assert.Equal(1, buf.LevelCounts[(int)LogLevel.Info]);
-        Assert.Equal(1, buf.LevelCounts[(int)LogLevel.Warn]);
-        Assert.Equal(1, buf.LevelCounts[(int)LogLevel.Error]);
-        Assert.Equal(1, buf.LevelCounts[(int)LogLevel.Debug]);
+        // Verify counts are indexed by the integer value of each StatLevel
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Info]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Warn]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Error]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Debug]);
 
         // An unrecognized (out-of-range) index must be silently ignored — no exception
         var ex = Record.Exception(() =>
         {
-            buf.IncrementLevel((LogLevel)9999);
-            buf.IncrementLevel((LogLevel)(-1));
+            buf.IncrementLevel((StatLevel)9999);
+            buf.IncrementLevel((StatLevel)(-1));
         });
         Assert.Null(ex);
+    }
+
+    [Fact]
+    [Invariant("STAT-001")]
+    public void IncrementFsEvent_WithOutOfRangeKind_DoesNotThrow()
+    {
+        var buf = new WorkerStatsBuffer();
+        var ex = Record.Exception(() =>
+        {
+            buf.IncrementFsEvent((StatEventKind)9999);
+            buf.IncrementFsEvent((StatEventKind)(-1));
+        });
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void IncrementLevel_EachStatLevelVariant_IncrementsCorrectBucket()
+    {
+        var buf = new WorkerStatsBuffer();
+        buf.IncrementLevel(StatLevel.Info);
+        buf.IncrementLevel(StatLevel.Warn);
+        buf.IncrementLevel(StatLevel.Error);
+        buf.IncrementLevel(StatLevel.Debug);
+        buf.IncrementLevel(StatLevel.Other);
+
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Info]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Warn]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Error]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Debug]);
+        Assert.Equal(1, buf.LevelCounts[(int)StatLevel.Other]);
+    }
+
+    [Fact]
+    public void IncrementFsEvent_EachStatEventKindVariant_IncrementsCorrectCounter()
+    {
+        var buf = new WorkerStatsBuffer();
+        buf.IncrementFsEvent(StatEventKind.Created);
+        buf.IncrementFsEvent(StatEventKind.Modified);
+        buf.IncrementFsEvent(StatEventKind.Deleted);
+        buf.IncrementFsEvent(StatEventKind.Renamed);
+
+        Assert.Equal(1, buf.FsCreated);
+        Assert.Equal(1, buf.FsModified);
+        Assert.Equal(1, buf.FsDeleted);
+        Assert.Equal(1, buf.FsRenamed);
     }
 }

@@ -158,4 +158,30 @@ public class FileProcessorTests : IDisposable
             Assert.Equal(1, stats.LinesProcessed);
         }
     }
+
+    [Theory]
+    [InlineData("INFO",  StatLevel.Info)]
+    [InlineData("WARN",  StatLevel.Warn)]
+    [InlineData("ERROR", StatLevel.Error)]
+    [InlineData("DEBUG", StatLevel.Debug)]
+    [InlineData("OTHER", StatLevel.Other)]
+    public void ProcessOnce_EachLogLevelToken_IncrementsCorrectStatLevelBucket(string token, StatLevel expected)
+    {
+        var p = MakePath($"level_{token}.log");
+        File.WriteAllText(p, $"2023-01-02T03:04:05Z {token} key\n");
+
+        var fp = new FileProcessor();
+        var reg = new FileStateRegistry();
+        var state = reg.GetOrCreate(p);
+        lock (state.Gate)
+        {
+            var stats = new WorkerStatsBuffer();
+            fp.ProcessOnce(p, state, stats);
+            Assert.Equal(1, stats.LevelCounts[(int)expected]);
+            // All other buckets must remain zero
+            for (var i = 0; i < stats.LevelCounts.Length; i++)
+                if (i != (int)expected)
+                    Assert.Equal(0, stats.LevelCounts[i]);
+        }
+    }
 }

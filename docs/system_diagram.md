@@ -4,85 +4,85 @@
 
 ```mermaid
 graph TB
-    subgraph Input["Input Layer"]
+    subgraph Ingestion["Ingestion"]
         FS["File System"]
-        FSW["FileSystemWatcher"]
+        FSW["FilesystemWatcherAdapter"]
+        FEV["FsEvent<br/>Created|Modified|Deleted|Renamed"]
     end
 
-    subgraph EventBus["Event Bus Layer"]
-        BEB["BoundedEventBus&lt;FsEvent&gt;"]
-        EV["FsEvent<br/>Created|Modified|Deleted|Renamed"]
+    subgraph Backpressure["Backpressure"]
+        BEB["BoundedEventBus&lt;T&gt;"]
     end
 
-    subgraph Coordination["Coordination Layer"]
-        PC["ProcessingCoordinator<br/>N Worker Threads"]
+    subgraph FileManagement["FileManagement"]
         FSR["FileStateRegistry<br/>Per-File State Machine"]
+        FS_State["FileState<br/>Offset + Flags + Gate"]
+        PLB["PartialLineBuffer<br/>Carryover Storage"]
     end
 
-    subgraph Processing["Processing Layer"]
-        FP["FileProcessor<br/>Read & Parse"]
-        FT["FileTailer<br/>Track File Position"]
-        LP["LogParser<br/>Parse Log Lines"]
-        USS["Utf8LineScanner<br/>Span-based Scanning"]
+    subgraph Processing["Processing"]
+        PC["ProcessingCoordinator<br/>N Worker Threads"]
+        FP["FileProcessor<br/>Orchestrator"]
+
+        subgraph Tailing["Tailing"]
+            FT["FileTailer<br/>Chunked Reads"]
+            TRS["TailReadStatus"]
+        end
+
+        subgraph Scanning["Scanning"]
+            USS["Utf8LineScanner<br/>Line Splitting"]
+        end
+
+        subgraph Parsing["Parsing"]
+            LP["LogParser<br/>Parse Records"]
+            PLL["ParsedLogLine"]
+        end
     end
 
-    subgraph Metrics["Metrics & Stats Layer"]
-        WS["WorkerStats<br/>Per-Worker Stats"]
-        WSB["WorkerStatsBuffer<br/>Swap Buffer"]
-        LH["LatencyHistogram<br/>Track Latencies"]
-        TK["TopK<br/>Most Frequent Messages"]
-        GS["GlobalSnapshot<br/>Aggregate View"]
+    subgraph Statistics["Statistics"]
+        WSB["WorkerStatsBuffer<br/>Per-Interval Metrics"]
+        LH["LatencyHistogram<br/>Bounded Distribution"]
+        TK["TopK<br/>Frequency Computation"]
+        SL["StatLevel"]
+        SEK["StatEventKind"]
     end
 
-    subgraph Reporting["Reporting Layer"]
-        REP["Reporter<br/>Format & Output"]
-        STDOUT["Console Output"]
+    subgraph Coordination_["Coordination"]
+        WS["WorkerStats<br/>Double-Buffer Swap Protocol"]
     end
 
-    subgraph CLI["CLI Layer"]
-        PROG["Program<br/>Entry Point"]
-        CLIP["CliParser<br/>Parse Arguments"]
-        CLIC["CliConfig<br/>Configuration"]
-        HW["HostWiring<br/>Dependency Injection"]
+    subgraph Reporting["Reporting"]
+        GS["GlobalSnapshot<br/>Merged Interval View"]
+        REP["Reporter<br/>Aggregation & Output"]
     end
 
-    %% Input connections
     FS -->|File Changes| FSW
-    FSW -->|Adapt Events| FSA["FilesystemWatcherAdapter"]
-    FSA -->|Publish FsEvent| BEB
-
-    %% Event Bus
+    FSW -->|FsEvent| BEB
     BEB -->|Dequeue| PC
-
-    %% Coordination & Registry
-    PC -->|Lookup Per-File State| FSR
-    PC -->|Process File| FP
-    PC -->|Update Worker Stats| WS
-
-    %% Processing Pipeline
-    FP -->|Read Tail| FT
+    PC -->|Lookup/Create| FSR
+    FSR -->|State| FS_State
+    FS_State -->|Carryover| PLB
+    PC -->|Orchestrate| FP
+    FP -->|Read Chunks| FT
+    FT -->|Status| TRS
     FT -->|Raw Bytes| USS
     USS -->|Lines| LP
-    LP -->|LogRecord| Metrics
-
-    %% Metrics Collection
-    LP -->|Timestamp, Level| WS
-    LP -->|Message Key| TK
-    LP -->|Latency| LH
-    WS -->|Buffer| WSB
-    WSB -->|Swap| GS
-
-    %% Reporting
-    GS -->|Aggregate Stats| REP
-    REP -->|Format Output| STDOUT
-
-    %% CLI Wiring
-    PROG -->|Parse| CLIP
-    CLIP -->|Create Config| CLIC
-    CLIC -->|Wire Components| HW
-    HW -->|Start| PC
-    HW -->|Start| FSA
-    HW -->|Periodic| REP
+    LP -->|ParsedLogLine| PLL
+    PLL -->|LogLevel → StatLevel| FP
+    FP -->|Counters| WSB
+    FP -->|Message| TK
+    FP -->|Latency| LH
+    WSB -->|Contains| Statistics
+    TK -->|Contains| Statistics
+    LH -->|Contains| Statistics
+    PC -->|Coordinates| WS
+    WS -->|Owns| WSB
+    WS -->|Swap Request| REP
+    WSB -->|Merge| GS
+    TK -->|Merge| GS
+    LH -->|Merge| GS
+    GS -->|Snapshot| REP
+    REP -->|Output| STDOUT["Console Output"]
 
 ```
 
@@ -135,10 +135,11 @@ graph LR
     D -->|Read File| G
     G -->|Get Position| H
     H -->|New Bytes| I
-    I -->|LogRecord| J
-    J -->|Stats| K
-    J -->|Message| L
-    J -->|Latency| M
+    I -->|ParsedLogLine| J
+    J -->|LogLevel → StatLevel| G
+    G -->|Counters| K
+    G -->|Message| L
+    G -->|Latency| M
     K -->|Swap Buffer| N
     L -->|Swap Buffer| N
     M -->|Swap Buffer| N
@@ -157,21 +158,23 @@ graph TB
     end
 
     subgraph Records["Log Records"]
-        LOGR["LogRecord<br/>• Timestamp: DateTimeOffset<br/>• Level: LogLevel<br/>• MessageKey: ReadOnlySpan&lt;byte&gt;<br/>• LatencyMs: int?"]
-        LOGLVL["LogLevel<br/>Trace|Debug|Info<br/>Warn|Error|Fatal|Other"]
+        LOGR["ParsedLogLine<br/>• Timestamp: DateTimeOffset<br/>• Level: LogLevel<br/>• MessageKey: ReadOnlySpan&lt;byte&gt;<br/>• LatencyMs: int?"]
+        LOGLVL["LogLevel<br/>Info|Warn|Error|Debug|Other"]
     end
 
     subgraph FileState["File State Machine"]
-        FSTATE["FileState<br/>• Path: string<br/>• Position: long<br/>• LastObservedSize: long<br/>• IsDeleted: bool<br/>• Epoch: uint"]
+        FSTATE["FileState<br/>• Offset: long<br/>• Carry: PartialLineBuffer<br/>• Generation: int<br/>• IsDirty: bool<br/>• IsDeletePending: bool"]
         FSREG["FileStateRegistry<br/>Registry of all active<br/>file states"]
     end
 
     subgraph Stats["Statistics"]
-        WS["WorkerStats<br/>• LineCount<br/>• ErrorCount<br/>• TopK"]
+        WS["WorkerStats<br/>• Active: WorkerStatsBuffer<br/>• Inactive: WorkerStatsBuffer<br/>• Swap protocol"]
         WSB["WorkerStatsBuffer<br/>Current + Swap"]
         LH["LatencyHistogram<br/>• Median<br/>• P95, P99"]
         TK["TopK<br/>Most frequent<br/>message keys"]
         GS["GlobalSnapshot<br/>Aggregated metrics"]
+        SL["StatLevel<br/>Info|Warn|Error|Debug|Other"]
+        SEK["StatEventKind<br/>Created|Modified|Deleted|Renamed"]
     end
 
     FEV -.-> FEVK
@@ -259,7 +262,7 @@ sequenceDiagram
 graph LR
     A["Raw File<br/>Bytes"] -->|Read Chunk<br/>via FileTailer| B["Partial Line<br/>Buffer"]
     B -->|Utf8LineScanner<br/>ReadOnlySpan&lt;byte&gt;| C["Complete<br/>Log Line"]
-    C -->|Parse<br/>LogParser| D["LogRecord<br/>Timestamp<br/>Level<br/>Message Key<br/>Latency"]
+    C -->|Parse<br/>LogParser| D["ParsedLogLine<br/>Timestamp<br/>Level<br/>Message Key<br/>Latency"]
     D -->|Extract| E["Message Key<br/>String"]
     D -->|Extract| F["Latency<br/>int?"]
     E -->|TopK.Observe| G["TopK<br/>Frequency Map"]

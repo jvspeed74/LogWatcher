@@ -115,7 +115,6 @@ graph TB
 
         subgraph Parsing["Parsing"]
             LP["LogParser<br/>Parse Records"]
-            LL["LogLevel"]
             PLL["ParsedLogLine"]
         end
     end
@@ -124,6 +123,8 @@ graph TB
         WSB["WorkerStatsBuffer<br/>Per-Interval Metrics"]
         LH["LatencyHistogram<br/>Bounded Distribution"]
         TK["TopK<br/>Frequency Computation"]
+        SL["StatLevel"]
+        SEK["StatEventKind"]
     end
 
     subgraph Coordination_["Coordination"]
@@ -146,11 +147,11 @@ graph TB
     FT -->|Status| TRS
     FT -->|Raw Bytes| USS
     USS -->|Lines| LP
-    LP -->|Level| LL
     LP -->|ParsedLogLine| PLL
-    PLL -->|Counters| WSB
-    PLL -->|Message| TK
-    PLL -->|Latency| LH
+    PLL -->|LogLevel → StatLevel| FP
+    FP -->|Counters| WSB
+    FP -->|Message| TK
+    FP -->|Latency| LH
     WSB -->|Contains| Statistics
     TK -->|Contains| Statistics
     LH -->|Contains| Statistics

@@ -105,7 +105,7 @@ namespace LogWatcher.Core.Processing
                 }
 
                 // Increment filesystem event counter in active stats
-                stats.Active.IncrementFsEvent(ev.Kind);
+                stats.Active.IncrementFsEvent(ToStatEventKind(ev.Kind));
 
                 // Route event
                 switch (ev.Kind)
@@ -247,5 +247,15 @@ namespace LogWatcher.Core.Processing
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Skipped create/modify, delete pending path={Path}")]
         private static partial void LogSkippedDeletePending(ILogger logger, string path);
+
+#pragma warning disable CS8524
+        private static StatEventKind ToStatEventKind(FsEventKind kind) => kind switch
+        {
+            FsEventKind.Created  => StatEventKind.Created,
+            FsEventKind.Modified => StatEventKind.Modified,
+            FsEventKind.Deleted  => StatEventKind.Deleted,
+            FsEventKind.Renamed  => StatEventKind.Renamed,
+        };
+#pragma warning restore CS8524
     }
 }

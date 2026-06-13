@@ -263,7 +263,7 @@ Log format changes (timestamp format, level values, field names), new fields to 
 - Behavioral, inbound: `TryParse(ReadOnlySpan<byte> line, out ParsedLogLine parsed) → bool` — parses a UTF-8 line into a structured record; returns false only when timestamp parsing fails or required tokens are absent (PRS-001); the `MessageKey` span inside the returned `ParsedLogLine` is only valid for the duration of the enclosing `onLine` callback (PRS-004)
 - Behavioral, outbound: none
 - Data, outbound: `ParsedLogLine` to File Processing — structured record consumed inline during the `onLine` callback; `MessageKey` span is only valid for the enclosing callback duration (PRS-004)
-- Data, outbound: `LogLevel` to File Processing, CLI & Host — log-level enum read when translating to `StatLevel` before incrementing per-level counters, and when formatting level counts in reports
+- Data, outbound: `LogLevel` to File Processing — log-level enum read from `ParsedLogLine.Level` and translated to `StatLevel` before crossing the Statistics Collection boundary via `IncrementLevel`
 - Data, inbound: none
 
 **Dependency Direction:** none
@@ -365,7 +365,7 @@ timing changes.
 - Data, inbound: `WorkerStatsBuffer` from Statistics Collection — active buffer accessed via `WorkerStats.Active` and passed to `ProcessOnce`
 - Data, inbound: `StatEventKind` from Statistics Collection — target type for the `FsEventKind → StatEventKind` translation performed before calling `IncrementFsEvent`
 
-**Dependency Direction:** depends on Event Distribution, File State Management, File Processing, Worker Coordination, Statistics Collection
+**Dependency Direction:** depends on Ingestion, Event Distribution, File State Management, File Processing, Worker Coordination, Statistics Collection
 
 ---
 
@@ -549,9 +549,8 @@ shutdown sequence changes.
 - Data, inbound: `GlobalSnapshot` from Reporting — received via `ISnapshotConsumer.OnSnapshot` for console formatting
 - Data, inbound: `BoundedEventBus<FsEvent>` from Event Distribution — constructed here and passed to Ingestion, Processing Coordination, and Reporting
 - Data, inbound: `WorkerStats` from Worker Coordination — constructed here as an array and passed to Processing Coordination and Reporting
-- Data, inbound: `LogLevel` from Log Parsing — referenced when formatting per-level counts from `GlobalSnapshot.LevelCounts`
 
-**Dependency Direction:** depends on Ingestion, Event Distribution, File State Management, File Tailing, Line Scanning, Log Parsing, File Processing, Processing Coordination, Statistics Collection, Worker Coordination, Reporting
+**Dependency Direction:** depends on Ingestion, Event Distribution, File State Management, File Tailing, File Processing, Processing Coordination, Worker Coordination, Reporting
 
 ---
 
