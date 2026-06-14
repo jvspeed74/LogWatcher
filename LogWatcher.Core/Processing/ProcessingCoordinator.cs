@@ -104,26 +104,33 @@ namespace LogWatcher.Core.Processing
                     continue;
                 }
 
-                // Increment filesystem event counter in active stats
-                stats.Active.IncrementFsEvent(ToStatEventKind(ev.Kind));
-
-                // Route event
-                switch (ev.Kind)
+                try
                 {
-                    case FsEventKind.Created:
-                    case FsEventKind.Modified:
-                        if (ev.Processable)
-                            HandleCreateOrModify(ev.Path, stats);
-                        break;
-                    case FsEventKind.Deleted:
-                        HandleDelete(ev.Path, stats.Active);
-                        break;
-                    case FsEventKind.Renamed:
-                        if (!string.IsNullOrEmpty(ev.OldPath))
-                            HandleDelete(ev.OldPath, stats.Active);
-                        if (ev.Processable)
-                            HandleCreateOrModify(ev.Path, stats);
-                        break;
+                    // Increment filesystem event counter in active stats
+                    stats.Active.IncrementFsEvent(ToStatEventKind(ev.Kind));
+
+                    // Route event
+                    switch (ev.Kind)
+                    {
+                        case FsEventKind.Created:
+                        case FsEventKind.Modified:
+                            if (ev.Processable)
+                                HandleCreateOrModify(ev.Path, stats);
+                            break;
+                        case FsEventKind.Deleted:
+                            HandleDelete(ev.Path, stats.Active);
+                            break;
+                        case FsEventKind.Renamed:
+                            if (!string.IsNullOrEmpty(ev.OldPath))
+                                HandleDelete(ev.OldPath, stats.Active);
+                            if (ev.Processable)
+                                HandleCreateOrModify(ev.Path, stats);
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (_logger != null) LogWorkerEventException(_logger, ex, workerIndex, ev.Kind);
                 }
 
                 // Acknowledge swap after fully handling this event
@@ -248,13 +255,16 @@ namespace LogWatcher.Core.Processing
         [LoggerMessage(Level = LogLevel.Debug, Message = "Skipped create/modify, delete pending path={Path}")]
         private static partial void LogSkippedDeletePending(ILogger logger, string path);
 
+        [LoggerMessage(Level = LogLevel.Error, Message = "Worker event loop failed workerIndex={WorkerIndex} kind={Kind}")]
+        private static partial void LogWorkerEventException(ILogger logger, Exception ex, int workerIndex, FsEventKind kind);
+
 #pragma warning disable CS8524
         private static StatEventKind ToStatEventKind(FsEventKind kind) => kind switch
         {
-            FsEventKind.Created  => StatEventKind.Created,
+            FsEventKind.Created => StatEventKind.Created,
             FsEventKind.Modified => StatEventKind.Modified,
-            FsEventKind.Deleted  => StatEventKind.Deleted,
-            FsEventKind.Renamed  => StatEventKind.Renamed,
+            FsEventKind.Deleted => StatEventKind.Deleted,
+            FsEventKind.Renamed => StatEventKind.Renamed,
         };
 #pragma warning restore CS8524
     }

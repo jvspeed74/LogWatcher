@@ -50,6 +50,22 @@ internal class GateCheckingProcessor : IFileProcessor
     }
 }
 
+internal class ThrowThenRecordProcessor : IFileProcessor
+{
+    private readonly int _throwCount;
+    private int _callCount;
+    public readonly ConcurrentBag<string> Recorded = new();
+
+    public ThrowThenRecordProcessor(int throwCount) => _throwCount = throwCount;
+
+    public void ProcessOnce(string path, FileState state, WorkerStatsBuffer stats, int chunkSize = 64 * 1024)
+    {
+        if (Interlocked.Increment(ref _callCount) <= _throwCount)
+            throw new InvalidOperationException("Simulated downstream failure");
+        Recorded.Add(path);
+    }
+}
+
 public class ProcessingCoordinatorTests
 {
     [Fact]
@@ -195,5 +211,35 @@ public class ProcessingCoordinatorTests
 
         // The coordinator was constructed with exactly workerCount workers and has no API to change that
         Assert.Equal(workerCount, workerStats.Length);
+    }
+
+    [Fact]
+    [Invariant("PROC-009")]
+    public void WorkerLoop_DownstreamException_DoesNotTerminateWorker()
+    {
+        var bus = new BoundedEventBus<FsEvent>(100);
+        var registry = new FileStateRegistry();
+        var processor = new ThrowThenRecordProcessor(throwCount: 10);
+        var workerStats = new[] { new WorkerStats() };
+        var coord = new ProcessingCoordinator(bus, registry, processor, workerStats, 1, 50);
+        const string path = "proc009_test.log";
+
+        coord.Start();
+
+        // Phase 1: throw phase — worker must survive all 10 exceptions
+        for (var i = 0; i < 10; i++)
+            bus.Publish(new FsEvent(FsEventKind.Modified, path, null, DateTimeOffset.UtcNow, true));
+
+        Thread.Sleep(300);
+
+        // Phase 2: record phase — events only land here if the worker is still alive
+        for (var i = 0; i < 3; i++)
+            bus.Publish(new FsEvent(FsEventKind.Modified, path, null, DateTimeOffset.UtcNow, true));
+
+        Thread.Sleep(300);
+
+        coord.Stop();
+
+        Assert.NotEmpty(processor.Recorded);
     }
 }

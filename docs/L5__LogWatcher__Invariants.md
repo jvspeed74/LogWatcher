@@ -111,7 +111,7 @@ public void Publish_WhenFull_DropsNewestAndPreservesExisting() { ... }
 | PROC-005 | `behavioral` | PROC, BP | Every byte appended to a watched file is eventually processed assuming events are not permanently suppressed by the OS.            |
 | PROC-006 | `contract`   | PROC, FM | `ProcessOnce` is only called while the caller holds `state.Gate`.                                                                  |
 | PROC-007 | `strict`     | PROC     | Worker count is fixed at construction time. Workers are never dynamically added or removed during the lifetime of the coordinator. |
-| PROC-008 | `resource`   | PROC     | No heap objects are allocated per log line processed in the read-scan-parse cycle.                                                 |
+| PROC-008 | `resource`   | PROC     | No heap objects are allocated per line in the scan (`Utf8LineScanner.Scan`) and parse (`LogParser.TryParse`) steps. Statistics accumulation is excluded from this guarantee. |
 | PROC-009 | `strict`     | PROC     | The worker event loop catches all exceptions at its boundary — no exception propagated from a downstream module terminates the worker thread. |
 
 ---

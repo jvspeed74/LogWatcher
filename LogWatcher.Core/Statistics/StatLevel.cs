@@ -8,9 +8,9 @@ namespace LogWatcher.Core.Statistics;
 public enum StatLevel
 {
     /// <summary>Informational messages.</summary>
-    Info  = 0,
+    Info = 0,
     /// <summary>Warning messages.</summary>
-    Warn  = 1,
+    Warn = 1,
     /// <summary>Error messages.</summary>
     Error = 2,
     /// <summary>Debug-level messages.</summary>

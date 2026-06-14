@@ -8,11 +8,11 @@ namespace LogWatcher.Core.Statistics;
 public enum StatEventKind
 {
     /// <summary>File created.</summary>
-    Created  = 0,
+    Created = 0,
     /// <summary>File modified.</summary>
     Modified = 1,
     /// <summary>File deleted.</summary>
-    Deleted  = 2,
+    Deleted = 2,
     /// <summary>File renamed.</summary>
-    Renamed  = 3
+    Renamed = 3
 }

@@ -1,5 +1,9 @@
+using System.Text;
+
 using LogWatcher.Core.FileManagement;
 using LogWatcher.Core.Processing;
+using LogWatcher.Core.Processing.Parsing;
+using LogWatcher.Core.Processing.Scanning;
 using LogWatcher.Core.Statistics;
 
 namespace LogWatcher.Tests.Unit.Core.Processing;
@@ -160,8 +164,8 @@ public class FileProcessorTests : IDisposable
     }
 
     [Theory]
-    [InlineData("INFO",  StatLevel.Info)]
-    [InlineData("WARN",  StatLevel.Warn)]
+    [InlineData("INFO", StatLevel.Info)]
+    [InlineData("WARN", StatLevel.Warn)]
     [InlineData("ERROR", StatLevel.Error)]
     [InlineData("DEBUG", StatLevel.Debug)]
     [InlineData("OTHER", StatLevel.Other)]
@@ -183,5 +187,32 @@ public class FileProcessorTests : IDisposable
                 if (i != (int)expected)
                     Assert.Equal(0, stats.LevelCounts[i]);
         }
+    }
+
+    [Fact]
+    [Invariant("PROC-008")]
+    public void ScanAndParse_AllocatesNoHeapObjectsPerLine()
+    {
+        const string line = "2023-01-02T03:04:05Z INFO key latency_ms=123\n";
+        var builder = new StringBuilder();
+        for (var i = 0; i < 512; i++)
+            builder.Append(line);
+
+        var batch = Encoding.UTF8.GetBytes(builder.ToString());
+        var carry = new PartialLineBuffer();
+        Action<ReadOnlySpan<byte>> onLine = static lineSpan =>
+        {
+            if (!LogParser.TryParse(lineSpan, out _))
+                throw new InvalidOperationException("Parse failed");
+        };
+
+        Utf8LineScanner.Scan(batch, ref carry, onLine);
+        carry.Clear();
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        Utf8LineScanner.Scan(batch, ref carry, onLine);
+        long after = GC.GetAllocatedBytesForCurrentThread();
+
+        Assert.Equal(0L, after - before);
     }
 }

@@ -146,8 +146,8 @@ namespace LogWatcher.Core.Processing
 #pragma warning disable CS8524
         private static StatLevel ToStatLevel(ParsingLogLevel level) => level switch
         {
-            ParsingLogLevel.Info  => StatLevel.Info,
-            ParsingLogLevel.Warn  => StatLevel.Warn,
+            ParsingLogLevel.Info => StatLevel.Info,
+            ParsingLogLevel.Warn => StatLevel.Warn,
             ParsingLogLevel.Error => StatLevel.Error,
             ParsingLogLevel.Debug => StatLevel.Debug,
             ParsingLogLevel.Other => StatLevel.Other,
