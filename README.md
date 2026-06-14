@@ -170,14 +170,14 @@ graph TB
 
 ## Documentation
 
-| Priority       | Document                                                  | Purpose                                                                                                     |
-|----------------|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
-| **Start here** | [invariants.md](docs/invariants.md)                       | Every behavioral guarantee the system makes; IDs are enforced by tests. Read this before changing anything. |
-| **Start here** | [domain_boundaries.md](docs/domain_boundaries.md)         | What each of the 12 domains owns and why; tells you where new code belongs.                                 |
-| Reference      | [concurrency_model.md](docs/concurrency_model.md)         | Diagrams for every thread interaction, lock, and state machine.                                             |
-| Background     | [project_specification.md](docs/project_specification.md) | Non-technical overview of what the system does and why.                                                     |
-| Background     | [system_diagram.md](docs/system_diagram.md)               | High-level architecture diagrams.                                                                           |
-| Background     | [domain_definition.md](docs/domain_definition.md)         | The theory behind what a "domain" is; context for domain_boundaries.md.                                     |
+| Priority       | Document                                                       | Purpose                                                                                                        |
+|----------------|----------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| **Start here** | [Invariants](docs/L5__LogWatcher__Invariants.md)               | Every architectural guarantee the system makes; IDs are enforced by tests. Read this before changing anything. |
+| **Start here** | [Module Boundaries](docs/L5__LogWatcher__Module_Boundaries.md) | What each of the 12 domains owns and why; tells you where new code belongs.                                    |
+| Reference      | [Concurrency Model](docs/concurrency_model.md)                 | Diagrams for every thread interaction, lock, and state machine.                                                |
+| Background     | [Project Specification](docs/project_specification.md)         | Non-technical overview of what the system does and why.                                                        |
+| Background     | [System Diagram](docs/system_diagram.md)                       | High-level architecture diagrams.                                                                              |
+| Background     | [Module Definition](docs/module_definition.md)                 | The theory behind what a "domain" is; context for domain_boundaries.md.                                        |
 
 ---
 
@@ -206,21 +206,21 @@ implementation details, but rather the "rules of the road" that ensure the syste
 
 Invariants are typed by severity:
 
-| Type          | Violation means                                                |
-|---------------|----------------------------------------------------------------|
-| `strict`      | Data loss, corruption, or a crash                              |
-| `behavioral`  | Degraded but survivable behavior                               |
-| `contract`    | Caller and callee disagree on a shared assumption              |
-| `operational` | Undefined state occurs under resource exhaustion or OS failure |
+| Type | A violation means | Violation severity |
+|---|---|---|
+| `strict` | Data loss, corruption, or a crash | The system cannot continue correctly |
+| `contract` | A shared assumption at a module boundary is broken — one side expects a condition the other does not satisfy | The interaction between two modules is incorrect, regardless of system state |
+| `resource` | The module's implementation consumes a shared runtime resource in a pattern, or omits a structural property, that degrades the ambient environment other modules operate in — while the module's functional output remains correct | The shared environment (CPU, memory, scheduling) is degraded for modules with no declared relationship to the violating module |
+| `behavioral` | Observable behavior degrades while the system remains operational | The system survives but delivers reduced guarantees |
 
-The full definition can be found in [invariants.md](docs/invariants.md), but examples include:
+The full definition can be found in [Invariant Definition](docs/invariant_definition.md), but examples include:
 
-| ID       | Type          | Domains    | Description                                                                                                               |
-|----------|---------------|------------|---------------------------------------------------------------------------------------------------------------------------|
-| PROC-001 | `strict`      | PROC, FM   | At most one worker processes a given file path at any point in time.                                                      |
-| TAIL-004 | `behavioral`  | TAIL       | File not found, access denied, and IO errors are mapped to status codes and never propagated as exceptions to the caller. |
-| SCAN-005 | `contract`    | SCAN, PROC | The span passed to `onLine` is only valid for the duration of the callback and must not be retained by the caller.        |
-| <>       | `operational` | <>         | <>                                                                                                                        |
+| ID       | Type         | Domains    | Description                                                                                                               |
+|----------|--------------|------------|---------------------------------------------------------------------------------------------------------------------------|
+| PROC-001 | `strict`     | PROC, FM   | At most one worker processes a given file path at any point in time.                                                      |
+| SCAN-005 | `contract`   | SCAN, PROC | The span passed to `onLine` is only valid for the duration of the callback and must not be retained by the caller.        |
+| <>       | `resource`   | <>         | <>                                                                                                                        |
+| TAIL-004 | `behavioral` | TAIL       | File not found, access denied, and IO errors are mapped to status codes and never propagated as exceptions to the caller. |
 
 ## License
 
