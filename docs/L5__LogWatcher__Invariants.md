@@ -60,7 +60,7 @@ public void Publish_WhenFull_DropsNewestAndPreservesExisting() { ... }
 | FM-PLB-002 | `strict`   | FM       | Bytes written to the buffer before a growth event are always readable and correct after it.                                                                                 |
 | FM-PLB-003 | `strict`   | FM       | `Append` with an empty input is a no-op. `Length` and the underlying storage are unchanged.                                                                                 |
 | FM-PLB-004 | `strict`   | FM       | `Clear()` makes the buffer appear empty to callers without releasing the underlying storage. `Release()` makes the buffer appear empty and releases the underlying storage. |
-| FM-PLB-005 | `contract` | FM, SCAN | The span returned by `AsSpan()` is only valid until the next mutating call on the same buffer.                                                                              |
+| FM-PLB-005 | `contract` | FM, SCAN, PROC | The span returned by `AsSpan()` is only valid until the next mutating call on the same buffer.                                                                              |
 
 ---
 
@@ -120,7 +120,7 @@ public void Publish_WhenFull_DropsNewestAndPreservesExisting() { ... }
 
 | ID       | Type       | Modules | Description                                                                                                                                             |
 |----------|------------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| STAT-001 | `strict`   | STAT      | Level counts are indexed by the integer value of `LogLevel`. An unrecognized index is silently ignored and never throws.                                |
+| STAT-001 | `strict`   | STAT      | Level counts are indexed by the integer value of `StatLevel`. An unrecognized index is silently ignored and never throws.                                |
 | STAT-002 | `strict`   | STAT      | Histogram bin counts never decrease within a single buffer lifetime.                                                                                    |
 | STAT-003 | `strict`   | STAT      | Histogram total count always equals the sum of all bin counts.                                                                                          |
 | STAT-004 | `contract` | STAT, CD  | `Reset()` returns the buffer to an observable zero state. Callers must not assume anything about the internal capacity or allocation state after reset. |

@@ -50,9 +50,7 @@ code belongs.
 **Why:** Isolates OS-level concerns (FileSystemWatcher API, timing, paths) from business logic. This module owns the OS
 boundary.
 
-**Postulate Dimensions:**
-FileSystemWatcher API changes, new file extensions to monitor, or different event source (e.g., polling instead of
-notifications).
+**Postulate:** The OS filesystem notification contract as exposed by the .NET `FileSystemWatcher` API — the event types, path semantics, and delivery timing that govern how filesystem changes are observed.
 
 **Data Ownership:**
 - `FsEvent` — the normalized internal representation of an OS filesystem event; its schema (path fields, processable flag, observed timestamp) is governed by the OS event model and extension filtering rules, which is this module's Postulate
@@ -92,9 +90,7 @@ notifications).
 **Why:** Decouples event generation from event processing. Provides predictable backpressure behavior without requiring
 callers to manage synchronization.
 
-**Postulate Dimensions:**
-Queue semantics change (drop-oldest vs. drop-newest), capacity strategy becomes adaptive, or synchronization primitive
-changes (Monitor to lock-free channel).
+**Postulate:** The bounded concurrent queue contract — the capacity policy, drop behaviour, and producer/consumer synchronisation model that govern backpressure event delivery.
 
 **Data Ownership:**
 - `BoundedEventBus<T>` — the bounded, thread-safe queue implementing backpressure; its schema (capacity policy, drop behavior, shutdown signaling, observable metrics) changes when queue semantics change, which is this module's Postulate
@@ -136,9 +132,7 @@ changes (Monitor to lock-free channel).
 **Why:** Centralizes all per-file state so workers can safely access and update file tracking without races or lost
 updates.
 
-**Postulate Dimensions:**
-New per-file metadata needed (e.g., line count, last modified time), tombstone strategy changes, or carry buffer
-strategy changes (fixed size vs. exponential growth).
+**Postulate:** The per-file processing state contract — the set of metadata fields, their lifetime rules, and the access guarantees workers depend on across the file lifecycle.
 
 **Data Ownership:**
 - `FileState` — per-file mutable state (offset, carry buffer, dirty flag, delete-pending flag, gate lock, generation); its schema changes when new per-file metadata is required, which is this module's Postulate
@@ -180,8 +174,7 @@ strategy changes (fixed size vs. exponential growth).
 **Why:** Isolates IO concerns from the processing pipeline. Callback-driven design lets consumers process data as it's
 read, without buffering.
 
-**Postulate Dimensions:**
-Chunk size needs tuning, file sharing flags change (OS-specific behavior), or retry logic added for transient failures.
+**Postulate:** The OS file IO contract — the read semantics, sharing flags, and error modes the operating system exposes for incremental file reads.
 
 **Data Ownership:**
 - `TailReadStatus` — enum of possible read outcomes (NoData, ReadSome, FileNotFound, AccessDenied, IoError, TruncatedReset); its variants change when new tailing failure modes are recognized, which is this module's Postulate
@@ -216,9 +209,7 @@ Chunk size needs tuning, file sharing flags change (OS-specific behavior), or re
 
 **Why:** Separates the mechanical task of splitting bytes into lines from the semantic task of understanding log format.
 
-**Postulate Dimensions:**
-Support different line delimiters (e.g., NUL-terminated), change carryover strategy (buffer management), or add line
-length validation.
+**Postulate:** The line framing protocol — the delimiter convention and carryover rules that define how a raw byte stream is split into complete, delimiter-stripped lines.
 
 **Data Ownership:** none
 
@@ -254,8 +245,7 @@ length validation.
 
 **Why:** Encodes log format knowledge in one place. Changes to log format require changes here and nowhere else.
 
-**Postulate Dimensions:**
-Log format changes (timestamp format, level values, field names), new fields to extract, or parsing strictness changes.
+**Postulate:** The LogWatcher log format specification — the field layout, timestamp format, level vocabulary, and extraction rules that define a valid log line.
 
 **Data Ownership:**
 - `ParsedLogLine` — structured log record (timestamp, level, message key span, optional latency); its schema changes when the log format changes, which is this module's Postulate
@@ -271,6 +261,8 @@ Log format changes (timestamp format, level values, field names), new fields to 
 **Dependency Direction:** none
 
 ---
+
+> **Namespace note — Modules 7 and 8:** File Processing and Processing Coordination share namespace `LogWatcher.Core.Processing`. This deviates from Rule 2 (unique namespace per module). The boundary between them is logical, not physical: both classes reside in the same C# namespace. The deviation is acknowledged; no restructuring to a sub-module or module-area model is planned because the two modules have distinct Postulates and the shared namespace is a C# project layout constraint, not a design overlap.
 
 ### **Module 7: File Processing**
 
@@ -296,8 +288,7 @@ Log format changes (timestamp format, level values, field names), new fields to 
 **Why:** Provides a single orchestration point that ties together the IO, scanning, and parsing substages without
 duplicating logic.
 
-**Postulate Dimensions:**
-Processing pipeline order changes, pre/post-processing hooks needed, or error handling strategy changes.
+**Postulate:** The per-file pipeline protocol — the ordering and handoff contract between tailing, scanning, and parsing that governs how a single file's bytes become structured records.
 
 **Data Ownership:** none
 
@@ -346,9 +337,7 @@ Processing pipeline order changes, pre/post-processing hooks needed, or error ha
 **Why:** Coordinates the entire processing pipeline: dequeuing events, routing to files, managing per-file locks, and
 coalescing redundant work.
 
-**Postulate Dimensions:**
-Worker count policy changes, event routing rules change, dirty loop strategy changes (catch-up vs. drop), or swap ack
-timing changes.
+**Postulate:** The worker routing and serialisation policy — the rules governing how events are dispatched to files, how per-file concurrency is enforced, and when buffer swaps are acknowledged.
 
 **Data Ownership:** none
 
@@ -399,8 +388,7 @@ timing changes.
 **Why:** Provides a single container for all metrics that workers accumulate during an interval, making them easy to
 swap and merge.
 
-**Postulate Dimensions:**
-New counter needed (e.g., BytesProcessed), histogram bounds change, top-K algorithm changes, or reset semantics change.
+**Postulate:** The metrics accumulation contract — the set of counters, histogram bounds, and reset semantics that define what a per-worker interval buffer tracks and guarantees.
 
 **Data Ownership:**
 - `WorkerStatsBuffer` — per-worker per-interval metrics accumulator (scalar counters, per-level counts, per-message frequency map, latency histogram); its schema changes when new metrics are needed or reset semantics change, which is this module's Postulate
@@ -449,9 +437,7 @@ New counter needed (e.g., BytesProcessed), histogram bounds change, top-K algori
 
 **Why:** Separates the synchronization protocol from the metrics definitions, allowing both to evolve independently.
 
-**Postulate Dimensions:**
-Swap protocol changes (double-buffer to triple-buffer), ack mechanism changes (ManualResetEventSlim to different
-primitive), or swap timing changes (per-event to periodic).
+**Postulate:** The double-buffer swap protocol — the sequencing contract between workers and the reporter for exchanging active and inactive buffers safely.
 
 **Data Ownership:**
 - `WorkerStats` — double-buffer coordination object encapsulating the active/inactive buffer references and the swap-request/ack protocol; its schema changes when the swap protocol or ack mechanism changes, which is this module's Postulate
@@ -473,7 +459,7 @@ primitive), or swap timing changes (per-event to periodic).
 
 **Namespace:** `LogWatcher.Core.Reporting`
 
-**Responsibility:** Merge worker buffers into aggregated snapshot, compute derived metrics, print reports.
+**Responsibility:** Produce interval reports from aggregated worker statistics snapshots.
 
 **In Scope:**
 
@@ -493,9 +479,7 @@ primitive), or swap timing changes (per-event to periodic).
 
 **Why:** Centralizes output logic so changing report format, interval, or metrics only affects this module.
 
-**Postulate Dimensions:**
-Report interval changes, output format changes (console to file to JSON), new GC metrics added, or rate computation
-changes.
+**Postulate:** The interval reporting contract — the cadence, aggregation logic, and output schema that govern how worker snapshots are merged and delivered as finalized reports.
 
 **Data Ownership:**
 - `GlobalSnapshot` — aggregated cross-worker snapshot including merged counters, GC metrics, derived rates, top-K results, and computed percentiles; its schema changes when the report format or aggregated metrics change, which is this module's Postulate
@@ -540,9 +524,7 @@ changes.
 
 **Why:** Keeps bootstrap logic separate from modules so the core system is testable independently of how it's wired up.
 
-**Postulate Dimensions:**
-Argument names or validation rules change, new configuration options added, component assembly order changes, or
-shutdown sequence changes.
+**Postulate:** The LogWatcher application configuration and lifecycle contract — the CLI argument schema and the startup/shutdown ordering rules for all components.
 
 **Data Ownership:**
 - `LogWatcherOptions` — parsed and validated CLI configuration record (watch path, worker count, queue capacity, report interval, top-K count); its schema changes when new CLI arguments are added or validation rules change, which is this module's Postulate
