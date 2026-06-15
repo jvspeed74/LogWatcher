@@ -6,53 +6,15 @@
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](#license)
 
-![](./docs/assets/terminal_demonstration.gif)
-
 ---
 
-## Overview
-
-LogWatcher watches a local directory for `.log` and `.txt` file activity and computes rolling statistics in real time.
-As files grow, it tails each one incrementally — reading only newly appended bytes — and parses every line for
-timestamp, log level, message type, and optional latency.
-
-Every two seconds it prints a summary to the console:
-
-- lines processed per second
-- malformed line counts
-- the most frequent message types
-- latency percentiles (p50/p95/p99).
-
-It runs as a single self-contained process.
-
-See [project_specification.md](docs/project_specification.md) for the non-technical specification of the system.
-
-## Usage
-
-```bash
-dotnet run --project LogWatcher.App -- <watchPath> [options]
-```
-
-| Argument/Option         | Description                                                                                               | Default    |
-|-------------------------|-----------------------------------------------------------------------------------------------------------|------------|
-| `watchPath`             | Directory path to watch for log file changes                                                              | (required) |
-| `--workers, -w`         | Number of worker threads for parallel processing                                                          | CPU count  |
-| `--queue-capacity, -q`  | Maximum capacity of the filesystem event queue                                                            | 10,000     |
-| `--report-interval, -i` | Interval between console output (seconds)                                                                 | 2          |
-| `--topk, -k`            | Number of most-frequent messages to track                                                                 | 10         |
-| `--log-level, -l`       | Minimum log level for LogWatcher output (`Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`) | `Warning`  |
-
-```bash
-dotnet run --project LogWatcher.App -- ./logs --workers 8 --queue-capacity 50000 --report-interval 1
-```
-
-### Docker Compose
-
-To run the application with a sample log generator using Docker Compose, use the following command:
-
-```bash
-docker compose up --build
-```
+  * [Why This Exists](#why-this-exists)
+  * [Architecture](#architecture)
+  * [Functionality](#functionality)
+  * [Usage](#usage)
+  * [Documentation](#documentation)
+  * [Machine-Enforced Invariants for Agentic Development in Concurrent Systems](#machine-enforced-invariants-for-agentic-development-in-concurrent-systems)
+  * [License](#license)
 
 ---
 
@@ -168,6 +130,52 @@ graph TB
 
 ---
 
+## Functionality
+
+LogWatcher watches a local directory for `.log` and `.txt` file activity and computes rolling statistics in real time.
+As files grow, it tails each one incrementally — reading only newly appended bytes — and parses every line for
+timestamp, log level, message type, and optional latency.
+
+Every two seconds it prints a summary to the console:
+
+- lines processed per second
+- malformed line counts
+- the most frequent message types
+- latency percentiles (p50/p95/p99).
+
+It runs as a single self-contained process.
+
+---
+
+## Usage
+
+```bash
+dotnet run --project LogWatcher.App -- <watchPath> [options]
+```
+
+| Argument/Option         | Description                                                                                               | Default    |
+|-------------------------|-----------------------------------------------------------------------------------------------------------|------------|
+| `watchPath`             | Directory path to watch for log file changes                                                              | (required) |
+| `--workers, -w`         | Number of worker threads for parallel processing                                                          | CPU count  |
+| `--queue-capacity, -q`  | Maximum capacity of the filesystem event queue                                                            | 10,000     |
+| `--report-interval, -i` | Interval between console output (seconds)                                                                 | 2          |
+| `--topk, -k`            | Number of most-frequent messages to track                                                                 | 10         |
+| `--log-level, -l`       | Minimum log level for LogWatcher output (`Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`) | `Warning`  |
+
+```bash
+dotnet run --project LogWatcher.App -- ./logs --workers 8 --queue-capacity 50000 --report-interval 1
+```
+
+### Docker Compose
+
+To run the application with a sample log generator using Docker Compose, use the following command:
+
+```bash
+docker compose up --build
+```
+
+---
+
 ## Documentation
 
 | Priority       | Document                                                       | Purpose                                                                                                        |
@@ -219,8 +227,10 @@ The full definition can be found in [Invariant Definition](docs/invariant_defini
 |----------|--------------|------------|---------------------------------------------------------------------------------------------------------------------------|
 | PROC-001 | `strict`     | PROC, FM   | At most one worker processes a given file path at any point in time.                                                      |
 | SCAN-005 | `contract`   | SCAN, PROC | The span passed to `onLine` is only valid for the duration of the callback and must not be retained by the caller.        |
-| <>       | `resource`   | <>         | <>                                                                                                                        |
+| PROC-008 | `resource`   | PROC     | No heap objects are allocated per line in the scan (`Utf8LineScanner.Scan`) and parse (`LogParser.TryParse`) steps. Statistics accumulation is excluded from this guarantee. |
 | TAIL-004 | `behavioral` | TAIL       | File not found, access denied, and IO errors are mapped to status codes and never propagated as exceptions to the caller. |
+
+---
 
 ## License
 
