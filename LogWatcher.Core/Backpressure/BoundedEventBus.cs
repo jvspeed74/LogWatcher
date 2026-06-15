@@ -20,7 +20,10 @@ namespace LogWatcher.Core.Backpressure
 
         // Separate stopped flag lets Publish distinguish a capacity drop from a post-Stop
         // return so that _dropped is not incremented for post-Stop publish calls.
-        private bool _stopped;
+        // volatile: Stop() is called on the host thread; Publish() is called on FileSystemWatcher
+        // ThreadPool threads. volatile ensures the write is visible across threads and prevents
+        // the JIT from hoisting or caching the read at an inlined call site.
+        private volatile bool _stopped;
 
         private long _published;
         private long _dropped;
@@ -56,7 +59,7 @@ namespace LogWatcher.Core.Backpressure
         public bool Publish(T item)
         {
             // Return without counting as dropped — Stop is not a capacity event.
-            if (Volatile.Read(ref _stopped))
+            if (_stopped)
                 return false;
 
             if (_channel.Writer.TryWrite(item))
@@ -146,7 +149,7 @@ namespace LogWatcher.Core.Backpressure
         /// </summary>
         public void Stop()
         {
-            Volatile.Write(ref _stopped, true);
+            _stopped = true;
             // Completing the writer causes WaitToReadAsync to return false once the
             // channel is empty, unblocking all blocked TryDequeue callers (BP-005).
             _channel.Writer.TryComplete();

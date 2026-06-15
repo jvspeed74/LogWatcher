@@ -4,10 +4,10 @@ using System.Text.RegularExpressions;
 namespace LogWatcher.Tests;
 
 /// <summary>
-/// Two-way integrity check between invariants.md and [Invariant] tags on tests.
+/// Two-way integrity check between L5__LogWatcher__Invariants.md and [Invariant] tags on tests.
 ///
-/// Forward check: every ID defined in invariants.md has at least one tagged test.
-/// Reverse check: every ID referenced in [Invariant] tags exists in invariants.md.
+/// Forward check: every ID defined in L5__LogWatcher__Invariants.md has at least one tagged test.
+/// Reverse check: every ID referenced in [Invariant] tags exists in L5__LogWatcher__Invariants.md.
 ///
 /// Both directions fail hard so CI catches gaps and stale tags alike.
 /// </summary>
@@ -32,11 +32,11 @@ public class InvariantCoverageTests
         Assert.True(
             coveringTests.Count > 0,
             $"Invariant {invariantId} has no covering tests. " +
-            $"Add [Invariant(\"{invariantId}\")] to at least one test or remove the invariant from invariants.md.");
+            $"Add [Invariant(\"{invariantId}\")] to at least one test or remove the invariant from L5__LogWatcher__Invariants.md.");
     }
 
     // -------------------------------------------------------------------------
-    // Reverse: every tag referenced in tests must exist in invariants.md
+    // Reverse: every tag referenced in tests must exist in L5__LogWatcher__Invariants.md
     // -------------------------------------------------------------------------
 
     public static IEnumerable<object[]> AllTaggedIds()
@@ -51,7 +51,7 @@ public class InvariantCoverageTests
     {
         Assert.True(
             DefinedIds.Value.Contains(invariantId),
-            $"[Invariant(\"{invariantId}\")] is referenced in tests but not defined in invariants.md. " +
+            $"[Invariant(\"{invariantId}\")] is referenced in tests but not defined in L5__LogWatcher__Invariants.md. " +
             $"Either add the invariant to the document or correct the tag.");
     }
 
@@ -61,16 +61,16 @@ public class InvariantCoverageTests
 
     private static IReadOnlySet<string> LoadDefinedIds()
     {
-        // invariants.md is embedded as a resource in the test assembly.
+        // L5__LogWatcher__Invariants.md is embedded as a resource in the test assembly.
         // To embed: in the .csproj add
-        //   <EmbeddedResource Include="invariants.md" />
+        //   <EmbeddedResource Include="..\docs\L5__LogWatcher__Invariants.md" />
         var assembly = typeof(InvariantCoverageTests).Assembly;
         var resourceName = assembly
                                .GetManifestResourceNames()
-                               .SingleOrDefault(n => n.EndsWith("invariants.md", StringComparison.OrdinalIgnoreCase))
+                              .SingleOrDefault(n => n.EndsWith("L5__LogWatcher__Invariants.md", StringComparison.OrdinalIgnoreCase))
                            ?? throw new InvalidOperationException(
-                               "Could not find embedded resource 'invariants.md'. " +
-                               "Ensure the file is included with <EmbeddedResource Include=\"invariants.md\" /> in the test .csproj.");
+                               "Could not find embedded resource 'L5__LogWatcher__Invariants.md'. " +
+                               "Ensure the file is included with <EmbeddedResource Include=\"..\\docs\\L5__LogWatcher__Invariants.md\" /> in the test .csproj.");
 
         using var stream = assembly.GetManifestResourceStream(resourceName)!;
         using var reader = new StreamReader(stream);
@@ -88,7 +88,7 @@ public class InvariantCoverageTests
 
         if (ids.Count == 0)
             throw new InvalidOperationException(
-                "No invariant IDs found in invariants.md. " +
+                "No invariant IDs found in L5__LogWatcher__Invariants.md. " +
                 "Expected IDs matching the pattern [A-Z]+-[0-9]{3} (e.g. BP-001, FM-PLB-003).");
 
         return ids;

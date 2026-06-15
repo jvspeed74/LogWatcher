@@ -1,6 +1,3 @@
-using LogWatcher.Core.Ingestion;
-using LogWatcher.Core.Processing.Parsing;
-
 namespace LogWatcher.Core.Statistics
 {
     /// <summary>
@@ -43,8 +40,8 @@ namespace LogWatcher.Core.Statistics
         /// <summary>Count of truncation resets.</summary>
         public long TruncationResetCount { get; set; }
 
-        // Level counts sized to LogLevel enum
-        /// <summary>Per-level counters indexed by <see cref="LogLevel"/>.</summary>
+        // Level counts sized to StatLevel enum
+        /// <summary>Per-level counters indexed by <see cref="StatLevel"/>.</summary>
         public long[] LevelCounts { get; set; }
 
         // Message counts (string keys)
@@ -64,7 +61,7 @@ namespace LogWatcher.Core.Statistics
         public WorkerStatsBuffer(int messageInitialCapacity = DefaultMessageCapacity)
         {
             // Initialize fields
-            LevelCounts = new long[Enum.GetNames<LogLevel>().Length];
+            LevelCounts = new long[Enum.GetNames<StatLevel>().Length];
             MessageCounts = new Dictionary<string, int>(messageInitialCapacity);
             Histogram = new LatencyHistogram();
         }
@@ -96,23 +93,23 @@ namespace LogWatcher.Core.Statistics
         /// Increment the appropriate filesystem event counter for <paramref name="kind"/>.
         /// </summary>
         /// <param name="kind">The filesystem event kind to increment.</param>
-        internal void IncrementFsEvent(FsEventKind kind)
+        internal void IncrementFsEvent(StatEventKind kind)
         {
             switch (kind)
             {
-                case FsEventKind.Created: FsCreated++; break;
-                case FsEventKind.Modified: FsModified++; break;
-                case FsEventKind.Deleted: FsDeleted++; break;
-                case FsEventKind.Renamed: FsRenamed++; break;
-                default: throw new ArgumentOutOfRangeException(nameof(kind));
+                case StatEventKind.Created: FsCreated++; break;
+                case StatEventKind.Modified: FsModified++; break;
+                case StatEventKind.Deleted: FsDeleted++; break;
+                case StatEventKind.Renamed: FsRenamed++; break;
+                default: break;
             }
         }
 
         /// <summary>
-        /// Increment the counter for the specified <see cref="LogLevel"/>.
+        /// Increment the counter for the specified <see cref="StatLevel"/>.
         /// </summary>
         /// <param name="level">Level to increment.</param>
-        internal void IncrementLevel(LogLevel level)
+        internal void IncrementLevel(StatLevel level)
         {
             var idx = (int)level;
             if (idx < 0 || idx >= LevelCounts.Length) return;

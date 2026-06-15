@@ -2,8 +2,8 @@ using LogWatcher.App;
 using LogWatcher.Core.Backpressure;
 using LogWatcher.Core.Coordination;
 using LogWatcher.Core.Ingestion;
-using LogWatcher.Core.Processing.Parsing;
 using LogWatcher.Core.Reporting;
+using LogWatcher.Core.Statistics;
 using LogWatcher.Tests.Helpers;
 
 namespace LogWatcher.Tests.Integration;
@@ -23,13 +23,13 @@ public class ReporterTests
         for (var i = 0; i < workers.Length; i++) workers[i] = new WorkerStats();
 
         // populate Active buffers
-        workers[0].Active.IncrementFsEvent(FsEventKind.Created);
-        workers[0].Active.IncrementLevel(LogLevel.Info);
+        workers[0].Active.IncrementFsEvent(StatEventKind.Created);
+        workers[0].Active.IncrementLevel(StatLevel.Info);
         workers[0].Active.IncrementMessage("k1");
         workers[0].Active.RecordLatency(10);
 
-        workers[1].Active.IncrementFsEvent(FsEventKind.Modified);
-        workers[1].Active.IncrementLevel(LogLevel.Warn);
+        workers[1].Active.IncrementFsEvent(StatEventKind.Modified);
+        workers[1].Active.IncrementLevel(StatLevel.Warn);
         workers[1].Active.IncrementMessage("k2");
         workers[1].Active.RecordLatency(100);
 
@@ -49,8 +49,8 @@ public class ReporterTests
         Assert.Equal(1, snap.FsCreated);
         Assert.Equal(1, snap.FsModified);
         // Level counts merged (ensure non-zero)
-        Assert.True(snap.LevelCounts[(int)LogLevel.Info] >= 1);
-        Assert.True(snap.LevelCounts[(int)LogLevel.Warn] >= 1);
+        Assert.True(snap.LevelCounts[(int)StatLevel.Info] >= 1);
+        Assert.True(snap.LevelCounts[(int)StatLevel.Warn] >= 1);
         // Assert message counts merged
         Assert.True(snap.MessageCounts.ContainsKey("k1"));
         Assert.True(snap.MessageCounts.ContainsKey("k2"));
